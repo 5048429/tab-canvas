@@ -51,6 +51,8 @@ async function handleMessage(message) {
   switch (message?.type) {
     case "getState":
       return getState();
+    case "checkCaptureAccess":
+      return { hasBroadCapture: await hasRequiredCaptureAccess() };
     case "activateTab":
       return activateTab(message.tabId, message.windowId);
     case "captureTab":
@@ -70,7 +72,7 @@ async function getState() {
   const [tabs, storage, hasBroadCapture] = await Promise.all([
     chrome.tabs.query({}),
     chrome.storage.local.get([STORAGE_KEYS.positions, STORAGE_KEYS.shots]),
-    chrome.permissions.contains({ origins: ["<all_urls>"] }),
+    hasRequiredCaptureAccess(),
   ]);
 
   return {
@@ -94,6 +96,11 @@ async function captureTab(tabId, windowId) {
   const url = target.tab?.url || "";
   const blockedReason = captureBlockedReason(url);
   if (blockedReason) throw new Error(blockedReason);
+  if (!(await hasRequiredCaptureAccess())) {
+    throw new Error(
+      "Capture access is missing. Reload the extension from chrome://extensions and accept site access.",
+    );
+  }
 
   await sleep(450);
 
@@ -122,22 +129,42 @@ async function captureTab(tabId, windowId) {
 
 function captureBlockedReason(url) {
   if (!url) return "";
-  if (url.startsWith("chrome://")) {
-    return "Chrome internal pages cannot be captured from the side panel. Open a normal web page and try again.";
-  }
-  if (url.startsWith("edge://")) {
-    return "Edge internal pages cannot be captured from the side panel. Open a normal web page and try again.";
+  const internalSchemes = [
+    "about:",
+    "brave://",
+    "chrome://",
+    "devtools://",
+    "edge://",
+    "opera://",
+    "vivaldi://",
+  ];
+  if (internalSchemes.some((scheme) => url.startsWith(scheme))) {
+    return "Browser internal pages cannot be captured from the side panel. Open a normal web page and try again.";
   }
   if (url.startsWith("chrome-extension://")) {
     return "Extension pages cannot be captured from the side panel. Open a normal web page and try again.";
   }
-  if (url.startsWith("devtools://")) {
-    return "DevTools pages cannot be captured. Open a normal web page and try again.";
+  if (url.startsWith("edge-extension://")) {
+    return "Extension pages cannot be captured from the side panel. Open a normal web page and try again.";
   }
   if (url.startsWith("file://")) {
     return "File pages require Chrome's Allow access to file URLs setting for this extension.";
   }
+  if (url.startsWith("data:")) {
+    return "Data URLs require a direct activeTab user gesture and are not reliable from the side panel.";
+  }
+  if (
+    url.startsWith("https://chromewebstore.google.com/") ||
+    url.startsWith("https://chrome.google.com/webstore/") ||
+    url.startsWith("https://microsoftedge.microsoft.com/addons/")
+  ) {
+    return "Browser extension store pages block extension capture. Open a normal web page and try again.";
+  }
   return "";
+}
+
+async function hasRequiredCaptureAccess() {
+  return chrome.permissions.contains({ origins: ["<all_urls>"] });
 }
 
 async function saveLayout(positions) {

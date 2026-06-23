@@ -25,14 +25,14 @@ Chrome extensions cannot hide Chrome's native tab strip or bookmarks bar. This p
 - Drag cards to organize the tab map.
 - Use the mouse wheel on a card to resize it.
 - Capture the active tab as a cached visual snapshot.
-- Request optional capture permission only when the user needs reliable screenshots.
+- Declares capture host access because screenshots are a core product capability.
 - Saves card layout and snapshots in extension storage.
 
 ## Known platform limits
 
 - The extension cannot force Side Panel to the left. Users must set that in Chrome.
 - The extension cannot replace or hide Chrome's native tab strip or bookmarks bar.
-- Screenshots require user-triggered capture permission and capture page content, not Chrome's browser UI.
+- Screenshots require host access and capture page content, not Chrome's browser UI.
 - Chrome internal pages such as `chrome://extensions`, extension pages, DevTools pages, and some local `file://` pages cannot be captured from the side panel.
 
 ## Remote setup

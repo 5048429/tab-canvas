@@ -36,7 +36,7 @@ async function init() {
 function bindEvents() {
   els.refresh.addEventListener("click", () => refreshState("Tabs refreshed."));
   els.capture.addEventListener("click", captureActiveTab);
-  els.grant.addEventListener("click", requestCapturePermission);
+  els.grant.addEventListener("click", checkCaptureAccess);
   els.arrange.addEventListener("click", arrangeCards);
   els.clearSearch.addEventListener("click", () => {
     state.query = "";
@@ -90,7 +90,7 @@ function render() {
   const visibleIds = new Set(visible.map((tab) => String(tab.id)));
   els.tabCount.textContent = String(state.tabs.length);
   els.shotCount.textContent = String(Object.keys(state.shots).length);
-  els.captureState.textContent = state.hasBroadCapture ? "Granted" : "Limited";
+  els.captureState.textContent = state.hasBroadCapture ? "Ready" : "Missing";
 
   if (!state.tabs.length) {
     els.canvas.innerHTML = '<div class="empty-state">No readable tabs yet.</div>';
@@ -206,14 +206,14 @@ async function captureActiveTab() {
   }
 }
 
-async function requestCapturePermission() {
-  const granted = await chrome.permissions.request({ origins: ["<all_urls>"] });
-  state.hasBroadCapture = granted;
+async function checkCaptureAccess() {
+  const result = await sendMessage({ type: "checkCaptureAccess" });
+  state.hasBroadCapture = Boolean(result.hasBroadCapture);
   render();
   setStatus(
-    granted
-      ? "Capture permission granted. Open a normal web page, then Capture active."
-      : "Capture permission was not granted.",
+    state.hasBroadCapture
+      ? "Capture access is ready for normal web pages."
+      : "Capture access is missing. Reload the extension and accept site access.",
   );
 }
 

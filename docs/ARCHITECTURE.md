@@ -11,6 +11,7 @@ The first version is a spatial navigation layer, not a live webpage embedder:
 - Cards can be dragged and resized.
 - The active tab can be captured as a cached screenshot.
 - Layout and screenshots are stored locally.
+- Screenshot access is declared as a core host permission because the product depends on reliable snapshots.
 
 ## Left side panel constraint
 
