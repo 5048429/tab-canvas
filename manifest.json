@@ -3,7 +3,7 @@
   "name": "Tab Canvas",
   "version": "0.1.0",
   "description": "A spatial side panel for navigating browser tabs with cached visual snapshots.",
-  "permissions": ["sidePanel", "tabs", "storage", "activeTab"],
+  "permissions": ["sidePanel", "tabs", "storage", "activeTab", "scripting"],
   "host_permissions": ["<all_urls>"],
   "background": {
     "service_worker": "background.js",

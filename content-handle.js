@@ -5,6 +5,19 @@
 
   const host = document.createElement("div");
   host.id = hostId;
+  host.style.cssText = [
+    "all: initial",
+    "position: fixed",
+    "right: 0",
+    "top: 50%",
+    "width: 44px",
+    "height: 136px",
+    "transform: translateY(-50%)",
+    "z-index: 2147483647",
+    "pointer-events: auto",
+    "display: block",
+    "contain: layout style paint",
+  ].join(";");
   const shadow = host.attachShadow({ mode: "closed" });
   shadow.innerHTML = `
     <style>
@@ -13,15 +26,13 @@
       }
 
       button {
-        position: fixed;
-        z-index: 2147483646;
-        right: 0;
-        top: 50%;
-        width: 38px;
-        height: 126px;
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
         margin: 0;
         padding: 0;
-        transform: translateY(-50%);
+        transform: none;
         border: 1px solid rgba(244, 245, 239, 0.34);
         border-right: 0;
         border-radius: 12px 0 0 12px;
@@ -54,7 +65,7 @@
 
       button:active,
       button.is-busy {
-        transform: translateY(-50%) translateX(-2px);
+        transform: translateX(-2px);
       }
     </style>
     <button type="button" aria-label="Toggle Tab Canvas" title="Toggle Tab Canvas">Canvas</button>

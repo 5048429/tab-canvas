@@ -12,12 +12,17 @@ async function setPanelBehavior() {
   await chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
 }
 
+async function initializeExtension() {
+  await setPanelBehavior();
+  await injectHandlesIntoOpenTabs();
+}
+
 chrome.runtime.onInstalled.addListener(() => {
-  setPanelBehavior().catch(() => {});
+  initializeExtension().catch(() => {});
 });
 
 chrome.runtime.onStartup.addListener(() => {
-  setPanelBehavior().catch(() => {});
+  initializeExtension().catch(() => {});
 });
 
 if (chrome.sidePanel?.onOpened) {
@@ -32,7 +37,13 @@ if (chrome.sidePanel?.onClosed) {
   });
 }
 
-chrome.tabs.onActivated.addListener(() => notifyPanelTabsChanged());
+chrome.tabs.onActivated.addListener((activeInfo) => {
+  notifyPanelTabsChanged();
+  chrome.tabs
+    .get(activeInfo.tabId)
+    .then((tab) => injectHandleIntoTab(tab))
+    .catch(() => {});
+});
 chrome.tabs.onCreated.addListener(() => notifyPanelTabsChanged());
 chrome.tabs.onRemoved.addListener((tabId) => {
   cleanupClosedTab(tabId)
@@ -42,6 +53,12 @@ chrome.tabs.onRemoved.addListener((tabId) => {
 chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
   if (changeInfo.title || changeInfo.url || changeInfo.favIconUrl || changeInfo.status) {
     notifyPanelTabsChanged();
+  }
+  if (changeInfo.status === "complete" || changeInfo.url) {
+    chrome.tabs
+      .get(tabId)
+      .then((tab) => injectHandleIntoTab(tab))
+      .catch(() => {});
   }
 });
 
@@ -139,6 +156,29 @@ async function getState() {
     viewport: storage[STORAGE_KEYS.viewport] || { zoom: 1 },
     hasBroadCapture,
   };
+}
+
+async function injectHandlesIntoOpenTabs() {
+  if (!chrome.scripting?.executeScript) return;
+  const tabs = await chrome.tabs.query({});
+  await Promise.allSettled(tabs.map((tab) => injectHandleIntoTab(tab)));
+}
+
+async function injectHandleIntoTab(tab) {
+  if (!chrome.scripting?.executeScript || !tab?.id || !isInjectablePage(tab.url)) return;
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      files: ["content-handle.js"],
+    });
+  } catch {
+    // Some matched pages can still block extension scripts, such as browser
+    // stores, restricted enterprise pages, or pages still loading.
+  }
+}
+
+function isInjectablePage(url = "") {
+  return url.startsWith("http://") || url.startsWith("https://");
 }
 
 async function activateTab(tabId, windowId) {
