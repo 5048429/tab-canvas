@@ -90,7 +90,11 @@ async function activateTab(tabId, windowId) {
 
 async function captureTab(tabId, windowId) {
   if (!tabId || !windowId) throw new Error("Missing capture target");
-  await activateTab(tabId, windowId);
+  const target = await activateTab(tabId, windowId);
+  const url = target.tab?.url || "";
+  const blockedReason = captureBlockedReason(url);
+  if (blockedReason) throw new Error(blockedReason);
+
   await sleep(450);
 
   let dataUrl;
@@ -100,9 +104,8 @@ async function captureTab(tabId, windowId) {
       quality: 58,
     });
   } catch (error) {
-    throw new Error(
-      "Chrome blocked this capture. Grant capture permission, then try again.",
-    );
+    const original = error?.message || chrome.runtime.lastError?.message || String(error);
+    throw new Error(`Chrome blocked this capture: ${original}`);
   }
 
   const storage = await chrome.storage.local.get([STORAGE_KEYS.shots]);
@@ -115,6 +118,26 @@ async function captureTab(tabId, windowId) {
   const trimmed = trimShots(shots, 36);
   await chrome.storage.local.set({ [STORAGE_KEYS.shots]: trimmed });
   return { shot: trimmed[String(tabId)] };
+}
+
+function captureBlockedReason(url) {
+  if (!url) return "";
+  if (url.startsWith("chrome://")) {
+    return "Chrome internal pages cannot be captured from the side panel. Open a normal web page and try again.";
+  }
+  if (url.startsWith("edge://")) {
+    return "Edge internal pages cannot be captured from the side panel. Open a normal web page and try again.";
+  }
+  if (url.startsWith("chrome-extension://")) {
+    return "Extension pages cannot be captured from the side panel. Open a normal web page and try again.";
+  }
+  if (url.startsWith("devtools://")) {
+    return "DevTools pages cannot be captured. Open a normal web page and try again.";
+  }
+  if (url.startsWith("file://")) {
+    return "File pages require Chrome's Allow access to file URLs setting for this extension.";
+  }
+  return "";
 }
 
 async function saveLayout(positions) {

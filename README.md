@@ -33,6 +33,7 @@ Chrome extensions cannot hide Chrome's native tab strip or bookmarks bar. This p
 - The extension cannot force Side Panel to the left. Users must set that in Chrome.
 - The extension cannot replace or hide Chrome's native tab strip or bookmarks bar.
 - Screenshots require user-triggered capture permission and capture page content, not Chrome's browser UI.
+- Chrome internal pages such as `chrome://extensions`, extension pages, DevTools pages, and some local `file://` pages cannot be captured from the side panel.
 
 ## Remote setup
 

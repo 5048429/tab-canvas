@@ -202,7 +202,7 @@ async function captureActiveTab() {
     await sendMessage({ type: "captureTab", tabId: active.id, windowId: active.windowId });
     await refreshState(`Captured ${active.title}.`);
   } catch (error) {
-    setStatus(`${error.message}`);
+    setStatus(error.message || "Capture failed.");
   }
 }
 
@@ -210,7 +210,11 @@ async function requestCapturePermission() {
   const granted = await chrome.permissions.request({ origins: ["<all_urls>"] });
   state.hasBroadCapture = granted;
   render();
-  setStatus(granted ? "Capture permission granted. Try Capture active." : "Capture permission was not granted.");
+  setStatus(
+    granted
+      ? "Capture permission granted. Open a normal web page, then Capture active."
+      : "Capture permission was not granted.",
+  );
 }
 
 function startCardPointer(event, tabId) {
