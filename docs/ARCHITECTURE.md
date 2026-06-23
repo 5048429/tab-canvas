@@ -14,6 +14,7 @@ The first version is a spatial navigation layer, not a live webpage embedder:
 - Layout and screenshots are stored locally.
 - Screenshot access is declared as a core host permission because the product depends on reliable snapshots.
 - The side panel UI is intentionally minimal: the whiteboard is primary, with search and board zoom as lightweight overlays.
+- The canvas can be toggled from a keyboard command or a slim content-script handle on normal web pages.
 
 ## Left side panel constraint
 
@@ -27,6 +28,7 @@ Chrome extensions cannot hide or replace the native tab strip, address bar, or b
 
 - `manifest.json`: MV3 manifest, permissions, action, side panel, command.
 - `background.js`: service worker, Chrome API bridge, tab sync, capture, storage.
+- `content-handle.js`: tiny in-page handle for opening or closing the side panel without using the Chrome toolbar.
 - `sidepanel.html`: side panel shell.
 - `sidepanel.css`: side panel UI.
 - `sidepanel.js`: canvas rendering and interactions.

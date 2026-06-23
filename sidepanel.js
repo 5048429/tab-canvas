@@ -361,6 +361,11 @@ function handleKeyDown(event) {
     return;
   }
 
+  if (event.key === "Escape") {
+    closeCanvasPanel();
+    return;
+  }
+
   if ((event.ctrlKey || event.metaKey) && event.key === "0") {
     event.preventDefault();
     setBoardZoom(1, { persist: true });
@@ -427,4 +432,12 @@ async function sendMessage(message) {
   const response = await chrome.runtime.sendMessage(message);
   if (!response?.ok) throw new Error(response?.error || "Extension request failed");
   return response;
+}
+
+async function closeCanvasPanel() {
+  try {
+    await sendMessage({ type: "closeCanvasPanel" });
+  } catch (error) {
+    setStatus(error.message || "Could not close Tab Canvas.");
+  }
 }

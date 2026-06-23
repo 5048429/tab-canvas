@@ -5,6 +5,7 @@ const STORAGE_KEYS = {
 };
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const openPanelWindows = new Set();
 
 async function setPanelBehavior() {
   if (!chrome.sidePanel?.setPanelBehavior) return;
@@ -22,15 +23,24 @@ chrome.runtime.onStartup.addListener(() => {
 chrome.commands.onCommand.addListener(async (command) => {
   if (command !== "toggle-canvas") return;
   try {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (tab?.windowId && chrome.sidePanel?.open) {
-      await chrome.sidePanel.open({ windowId: tab.windowId });
-    }
+    await toggleCanvasPanel();
   } catch {
     // Keyboard shortcuts are best-effort because Chrome can restrict panel opening
     // outside direct user activation in some surfaces.
   }
 });
+
+if (chrome.sidePanel?.onOpened) {
+  chrome.sidePanel.onOpened.addListener((info) => {
+    if (info?.windowId) openPanelWindows.add(info.windowId);
+  });
+}
+
+if (chrome.sidePanel?.onClosed) {
+  chrome.sidePanel.onClosed.addListener((info) => {
+    if (info?.windowId) openPanelWindows.delete(info.windowId);
+  });
+}
 
 chrome.tabs.onActivated.addListener(() => notifyPanelTabsChanged());
 chrome.tabs.onCreated.addListener(() => notifyPanelTabsChanged());
@@ -52,6 +62,10 @@ async function handleMessage(message) {
   switch (message?.type) {
     case "getState":
       return getState();
+    case "toggleCanvasPanel":
+      return toggleCanvasPanel(sender);
+    case "closeCanvasPanel":
+      return closeCanvasPanel(await resolveWindowId(sender, message.windowId));
     case "checkCaptureAccess":
       return { hasBroadCapture: await hasRequiredCaptureAccess() };
     case "activateTab":
@@ -67,10 +81,52 @@ async function handleMessage(message) {
     case "clearShot":
       return clearShot(message.tabId);
     case "warmup":
-      return {};
+      return markFocusedPanelOpen();
     default:
       throw new Error("Unknown message type");
   }
+}
+
+async function toggleCanvasPanel(sender) {
+  const windowId = await resolveWindowId(sender);
+  if (!windowId) throw new Error("No active browser window found");
+
+  if (openPanelWindows.has(windowId) && chrome.sidePanel?.close) {
+    await chrome.sidePanel.close({ windowId });
+    openPanelWindows.delete(windowId);
+    return { panelState: "closed" };
+  }
+
+  if (!chrome.sidePanel?.open) {
+    throw new Error("Side Panel API is unavailable in this browser");
+  }
+
+  await chrome.sidePanel.open({ windowId });
+  openPanelWindows.add(windowId);
+  return { panelState: "open" };
+}
+
+async function closeCanvasPanel(windowId) {
+  if (!windowId) throw new Error("No active browser window found");
+  if (!chrome.sidePanel?.close) {
+    throw new Error("This Chrome version cannot close side panels programmatically");
+  }
+  await chrome.sidePanel.close({ windowId });
+  openPanelWindows.delete(windowId);
+  return { panelState: "closed" };
+}
+
+async function markFocusedPanelOpen() {
+  const windowId = await resolveWindowId();
+  if (windowId) openPanelWindows.add(windowId);
+  return { panelState: "open" };
+}
+
+async function resolveWindowId(sender, requestedWindowId) {
+  if (requestedWindowId) return requestedWindowId;
+  if (sender?.tab?.windowId) return sender.tab.windowId;
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  return tab?.windowId;
 }
 
 async function getState() {

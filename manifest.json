@@ -15,13 +15,20 @@
   "side_panel": {
     "default_path": "sidepanel.html"
   },
+  "content_scripts": [
+    {
+      "matches": ["http://*/*", "https://*/*"],
+      "js": ["content-handle.js"],
+      "run_at": "document_idle"
+    }
+  ],
   "commands": {
     "toggle-canvas": {
       "suggested_key": {
         "default": "Ctrl+Shift+Y",
         "mac": "Command+Shift+Y"
       },
-      "description": "Open Tab Canvas"
+      "description": "Toggle Tab Canvas"
     }
   }
 }
