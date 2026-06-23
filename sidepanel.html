@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Tab Canvas</title>
+    <link rel="stylesheet" href="sidepanel.css" />
+  </head>
+  <body>
+    <main class="app">
+      <header class="header">
+        <div class="brand-row">
+          <div>
+            <h1>Tab Canvas</h1>
+            <p id="layoutHint">Loading browser panel layout...</p>
+          </div>
+          <button class="quiet-button" id="refreshButton" type="button">Refresh</button>
+        </div>
+
+        <div class="search-row">
+          <input id="searchInput" type="search" placeholder="Search tabs" autocomplete="off" />
+          <button class="quiet-button" id="clearSearchButton" type="button">Clear</button>
+        </div>
+
+        <div class="toolbar">
+          <button class="primary-button" id="captureButton" type="button">Capture active</button>
+          <button class="quiet-button" id="arrangeButton" type="button">Arrange</button>
+        </div>
+      </header>
+
+      <section class="stats">
+        <div>
+          <strong id="tabCount">0</strong>
+          <span>tabs</span>
+        </div>
+        <div>
+          <strong id="shotCount">0</strong>
+          <span>snapshots</span>
+        </div>
+        <div>
+          <strong id="captureState">Limited</strong>
+          <span>capture</span>
+        </div>
+      </section>
+
+      <section class="canvas-wrap" aria-label="Tab canvas">
+        <div class="canvas" id="canvas"></div>
+      </section>
+
+      <footer class="footer">
+        <span id="statusText">Click a card to switch the real browser tab.</span>
+      </footer>
+    </main>
+
+    <script src="sidepanel.js"></script>
+  </body>
+</html>
