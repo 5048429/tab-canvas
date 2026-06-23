@@ -1,5 +1,6 @@
 const DEFAULT_COLORS = ["#49c87d", "#f2b84b", "#8fb7ff", "#f06464", "#dfe2da", "#c8b7ff"];
 const CANVAS_SIZE = { width: 720, height: 1200 };
+const CARD_SIZE = { width: 220, height: 158 };
 const BOARD_ZOOM = { min: 0.55, max: 1.8, step: 0.1 };
 
 const state = {
@@ -61,12 +62,17 @@ function bindEvents() {
 }
 
 async function refreshState(message) {
+  const previousActiveId = activeTabId();
   const result = await sendMessage({ type: "getState" });
   state.tabs = result.tabs || [];
   state.positions = result.positions || {};
   state.shots = result.shots || {};
   state.boardZoom = clamp(Number(result.viewport?.zoom || 1), BOARD_ZOOM.min, BOARD_ZOOM.max);
   render();
+  const nextActiveId = activeTabId();
+  if (nextActiveId && nextActiveId !== previousActiveId) {
+    scheduleActiveTabLocate();
+  }
   if (message) setStatus(message);
 }
 
@@ -374,6 +380,38 @@ async function saveViewport() {
   await sendMessage({ type: "saveViewport", viewport: { zoom: state.boardZoom } });
 }
 
+function scheduleActiveTabLocate() {
+  if (state.query || state.dragging || state.panning) return;
+  requestAnimationFrame(() => scrollActiveTabIntoView());
+}
+
+function scrollActiveTabIntoView() {
+  if (state.query || state.dragging || state.panning) return;
+
+  const activeId = activeTabId();
+  const activeIndex = state.tabs.findIndex((tab) => tab.id === activeId);
+  if (activeIndex < 0) return;
+
+  const key = String(activeId);
+  const card = els.canvas.querySelector(`[data-tab-id="${key}"]`);
+  if (!card || card.classList.contains("is-hidden")) return;
+
+  const position = state.positions[key] || defaultPosition(activeIndex);
+  const scale = Number(position.scale || 1);
+  const cardCenterX = (position.x + (CARD_SIZE.width * scale) / 2) * state.boardZoom;
+  const cardCenterY = (position.y + (CARD_SIZE.height * scale) / 2) * state.boardZoom;
+  const targetLeft = cardCenterX - els.canvasWrap.clientWidth / 2;
+  const targetTop = cardCenterY - els.canvasWrap.clientHeight / 2;
+  const maxLeft = Math.max(0, els.canvasWrap.scrollWidth - els.canvasWrap.clientWidth);
+  const maxTop = Math.max(0, els.canvasWrap.scrollHeight - els.canvasWrap.clientHeight);
+
+  els.canvasWrap.scrollTo({
+    left: clamp(targetLeft, 0, maxLeft),
+    top: clamp(targetTop, 0, maxTop),
+    behavior: "smooth",
+  });
+}
+
 async function arrangeCards() {
   state.positions = {};
   state.tabs.forEach((tab, index) => {
@@ -415,6 +453,10 @@ function visibleTabs() {
   return state.tabs.filter((tab) =>
     [tab.title, tab.url].some((value) => String(value || "").toLowerCase().includes(query)),
   );
+}
+
+function activeTabId() {
+  return state.tabs.find((tab) => tab.active)?.id || null;
 }
 
 function defaultPosition(index) {

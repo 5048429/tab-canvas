@@ -8,6 +8,7 @@ The first version is a spatial navigation layer, not a live webpage embedder:
 
 - Cards represent real Chrome tabs.
 - Clicking a card activates the real tab.
+- When the active Chrome tab changes, the canvas scrolls to keep the matching card in view.
 - Closing a card removes the real Chrome tab and clears its cached layout/snapshot state.
 - Cards can be dragged and resized.
 - The board itself can be zoomed independently from individual cards.
