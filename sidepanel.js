@@ -9,6 +9,7 @@ const state = {
   boardZoom: 1,
   query: "",
   dragging: null,
+  panning: null,
 };
 
 const els = {
@@ -41,6 +42,7 @@ function bindEvents() {
     setBoardZoom(Number(els.zoomSlider.value) / 100, { persist: true });
   });
   els.canvasWrap.addEventListener("wheel", zoomBoardWithWheel, { passive: false });
+  els.canvasWrap.addEventListener("pointerdown", startBoardPan);
 
   ["input", "search", "change", "keyup"].forEach((eventName) => {
     els.search.addEventListener(eventName, () => {
@@ -180,6 +182,7 @@ async function activateTab(tabId) {
 
 function startCardPointer(event, tabId) {
   if (event.button !== 0) return;
+  event.stopPropagation();
 
   const key = String(tabId);
   const card = event.currentTarget;
@@ -227,6 +230,44 @@ function startCardPointer(event, tabId) {
 
   window.addEventListener("pointermove", move);
   window.addEventListener("pointerup", up);
+}
+
+function startBoardPan(event) {
+  if (event.button !== 0 || event.target.closest(".tab-card")) return;
+
+  event.preventDefault();
+  state.panning = {
+    pointerId: event.pointerId,
+    startX: event.clientX,
+    startY: event.clientY,
+    scrollLeft: els.canvasWrap.scrollLeft,
+    scrollTop: els.canvasWrap.scrollTop,
+  };
+
+  els.canvasWrap.classList.add("is-panning");
+  els.canvasWrap.setPointerCapture(event.pointerId);
+
+  function move(moveEvent) {
+    if (!state.panning || moveEvent.pointerId !== state.panning.pointerId) return;
+    els.canvasWrap.scrollLeft = state.panning.scrollLeft - (moveEvent.clientX - state.panning.startX);
+    els.canvasWrap.scrollTop = state.panning.scrollTop - (moveEvent.clientY - state.panning.startY);
+  }
+
+  function up(upEvent) {
+    if (!state.panning || upEvent.pointerId !== state.panning.pointerId) return;
+    if (els.canvasWrap.hasPointerCapture(upEvent.pointerId)) {
+      els.canvasWrap.releasePointerCapture(upEvent.pointerId);
+    }
+    els.canvasWrap.classList.remove("is-panning");
+    window.removeEventListener("pointermove", move);
+    window.removeEventListener("pointerup", up);
+    window.removeEventListener("pointercancel", up);
+    state.panning = null;
+  }
+
+  window.addEventListener("pointermove", move);
+  window.addEventListener("pointerup", up);
+  window.addEventListener("pointercancel", up);
 }
 
 async function zoomCard(event, tabId) {

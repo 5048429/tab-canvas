@@ -173,6 +173,12 @@ button {
   inset: 0;
   overflow: auto;
   background: var(--panel);
+  cursor: grab;
+  user-select: none;
+}
+
+.canvas-wrap.is-panning {
+  cursor: grabbing;
 }
 
 .canvas-plane {
