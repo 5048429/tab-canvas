@@ -73,14 +73,21 @@ async function refreshState(message) {
 function render() {
   const visible = visibleTabs();
   const visibleIds = new Set(visible.map((tab) => String(tab.id)));
+  const currentIds = new Set(state.tabs.map((tab) => String(tab.id)));
   els.tabCount.textContent =
     visible.length === state.tabs.length ? `${state.tabs.length} tabs` : `${visible.length}/${state.tabs.length}`;
   applyBoardZoom();
+
+  els.canvas.querySelectorAll(".tab-card").forEach((card) => {
+    if (!currentIds.has(card.dataset.tabId)) card.remove();
+  });
 
   if (!state.tabs.length) {
     els.canvas.innerHTML = '<div class="empty-state">No readable tabs yet.</div>';
     return;
   }
+
+  els.canvas.querySelector(".empty-state")?.remove();
 
   state.tabs.forEach((tab, index) => {
     const key = String(tab.id);
@@ -110,11 +117,18 @@ function createCard(tab) {
       <span class="favicon"></span>
       <span class="title"></span>
       <span class="chip"></span>
+      <button class="card-close" type="button" aria-label="Close tab" title="Close tab">x</button>
     </div>
     <div class="shot"></div>
   `;
   card.addEventListener("pointerdown", (event) => startCardPointer(event, tab.id));
   card.addEventListener("wheel", (event) => zoomCard(event, tab.id), { passive: false });
+  const closeButton = card.querySelector(".card-close");
+  closeButton.addEventListener("pointerdown", (event) => event.stopPropagation());
+  closeButton.addEventListener("click", (event) => {
+    event.stopPropagation();
+    closeTab(tab.id);
+  });
   return card;
 }
 
@@ -178,6 +192,23 @@ async function activateTab(tabId) {
     ? `Switched to ${tab.title}. Snapshot skipped: ${result.captureError}`
     : `Switched to ${tab.title} and refreshed its snapshot.`;
   await refreshState(message);
+}
+
+async function closeTab(tabId) {
+  const tab = state.tabs.find((item) => item.id === tabId);
+  if (!tab) return;
+
+  setStatus(`Closing ${tab.title}...`);
+  try {
+    await sendMessage({ type: "closeTab", tabId });
+    state.tabs = state.tabs.filter((item) => item.id !== tabId);
+    delete state.positions[String(tabId)];
+    delete state.shots[String(tabId)];
+    render();
+    await refreshState(`Closed ${tab.title}.`);
+  } catch (error) {
+    setStatus(error.message || "Could not close tab.");
+  }
 }
 
 function startCardPointer(event, tabId) {

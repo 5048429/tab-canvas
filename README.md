@@ -22,6 +22,7 @@ Chrome extensions cannot hide Chrome's native tab strip or bookmarks bar. This p
 
 - Syncs open tabs with title, URL, favicon, active state, and window ID.
 - Click a card to activate the real browser tab.
+- Close a tab from its card with the small close control in the title bar.
 - Drag cards to organize the tab map.
 - Drag empty board space to pan around the canvas.
 - Use the mouse wheel on a card to resize it.

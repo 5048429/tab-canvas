@@ -44,7 +44,11 @@ if (chrome.sidePanel?.onClosed) {
 
 chrome.tabs.onActivated.addListener(() => notifyPanelTabsChanged());
 chrome.tabs.onCreated.addListener(() => notifyPanelTabsChanged());
-chrome.tabs.onRemoved.addListener(() => notifyPanelTabsChanged());
+chrome.tabs.onRemoved.addListener((tabId) => {
+  cleanupClosedTab(tabId)
+    .catch(() => {})
+    .finally(() => notifyPanelTabsChanged());
+});
 chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
   if (changeInfo.title || changeInfo.url || changeInfo.favIconUrl || changeInfo.status) {
     notifyPanelTabsChanged();
@@ -72,6 +76,8 @@ async function handleMessage(message) {
       return activateTab(message.tabId, message.windowId);
     case "activateAndCaptureTab":
       return activateAndCaptureTab(message.tabId, message.windowId);
+    case "closeTab":
+      return closeTab(message.tabId);
     case "captureTab":
       return captureTab(message.tabId, message.windowId);
     case "saveLayout":
@@ -150,6 +156,13 @@ async function activateTab(tabId, windowId) {
   await chrome.windows.update(windowId, { focused: true });
   const tab = await chrome.tabs.update(tabId, { active: true });
   return { tab: publicTab(tab) };
+}
+
+async function closeTab(tabId) {
+  if (!tabId) throw new Error("Missing tab target");
+  await chrome.tabs.remove(tabId);
+  await cleanupClosedTab(tabId);
+  return {};
 }
 
 async function captureTab(tabId, windowId) {
@@ -264,6 +277,29 @@ async function clearShot(tabId) {
   delete shots[String(tabId)];
   await chrome.storage.local.set({ [STORAGE_KEYS.shots]: shots });
   return { shots };
+}
+
+async function cleanupClosedTab(tabId) {
+  const key = String(tabId);
+  const storage = await chrome.storage.local.get([STORAGE_KEYS.positions, STORAGE_KEYS.shots]);
+  const positions = storage[STORAGE_KEYS.positions] || {};
+  const shots = storage[STORAGE_KEYS.shots] || {};
+
+  let changed = false;
+  if (Object.hasOwn(positions, key)) {
+    delete positions[key];
+    changed = true;
+  }
+  if (Object.hasOwn(shots, key)) {
+    delete shots[key];
+    changed = true;
+  }
+  if (!changed) return;
+
+  await chrome.storage.local.set({
+    [STORAGE_KEYS.positions]: positions,
+    [STORAGE_KEYS.shots]: shots,
+  });
 }
 
 function publicTab(tab) {
