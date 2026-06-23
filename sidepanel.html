@@ -27,6 +27,14 @@
           <button class="quiet-button" id="grantButton" type="button">Check access</button>
           <button class="quiet-button" id="arrangeButton" type="button">Arrange</button>
         </div>
+
+        <div class="zoom-row">
+          <button class="quiet-button icon-button" id="zoomOutButton" type="button" aria-label="Zoom board out">-</button>
+          <input id="zoomSlider" type="range" min="55" max="180" step="5" value="100" aria-label="Board zoom" />
+          <strong id="zoomValue">100%</strong>
+          <button class="quiet-button icon-button" id="zoomInButton" type="button" aria-label="Zoom board in">+</button>
+          <button class="quiet-button" id="zoomResetButton" type="button">Reset</button>
+        </div>
       </header>
 
       <section class="stats">
@@ -44,8 +52,10 @@
         </div>
       </section>
 
-      <section class="canvas-wrap" aria-label="Tab canvas">
-        <div class="canvas" id="canvas"></div>
+      <section class="canvas-wrap" id="canvasWrap" aria-label="Tab canvas">
+        <div class="canvas-plane" id="canvasPlane">
+          <div class="canvas" id="canvas"></div>
+        </div>
       </section>
 
       <footer class="footer">

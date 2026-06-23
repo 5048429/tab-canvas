@@ -1,15 +1,20 @@
 const DEFAULT_COLORS = ["#49c87d", "#f2b84b", "#8fb7ff", "#f06464", "#dfe2da", "#c8b7ff"];
+const CANVAS_SIZE = { width: 720, height: 1200 };
+const BOARD_ZOOM = { min: 0.55, max: 1.8, step: 0.1 };
 
 const state = {
   tabs: [],
   positions: {},
   shots: {},
+  boardZoom: 1,
   query: "",
   hasBroadCapture: false,
   dragging: null,
 };
 
 const els = {
+  canvasWrap: document.querySelector("#canvasWrap"),
+  canvasPlane: document.querySelector("#canvasPlane"),
   canvas: document.querySelector("#canvas"),
   search: document.querySelector("#searchInput"),
   layoutHint: document.querySelector("#layoutHint"),
@@ -22,7 +27,14 @@ const els = {
   grant: document.querySelector("#grantButton"),
   arrange: document.querySelector("#arrangeButton"),
   clearSearch: document.querySelector("#clearSearchButton"),
+  zoomOut: document.querySelector("#zoomOutButton"),
+  zoomIn: document.querySelector("#zoomInButton"),
+  zoomReset: document.querySelector("#zoomResetButton"),
+  zoomSlider: document.querySelector("#zoomSlider"),
+  zoomValue: document.querySelector("#zoomValue"),
 };
+
+let viewportSaveTimer = 0;
 
 init();
 
@@ -38,6 +50,13 @@ function bindEvents() {
   els.capture.addEventListener("click", captureActiveTab);
   els.grant.addEventListener("click", checkCaptureAccess);
   els.arrange.addEventListener("click", arrangeCards);
+  els.zoomOut.addEventListener("click", () => setBoardZoom(state.boardZoom - BOARD_ZOOM.step, { persist: true }));
+  els.zoomIn.addEventListener("click", () => setBoardZoom(state.boardZoom + BOARD_ZOOM.step, { persist: true }));
+  els.zoomReset.addEventListener("click", () => setBoardZoom(1, { persist: true }));
+  els.zoomSlider.addEventListener("input", () => {
+    setBoardZoom(Number(els.zoomSlider.value) / 100, { persist: true });
+  });
+  els.canvasWrap.addEventListener("wheel", zoomBoardWithWheel, { passive: false });
   els.clearSearch.addEventListener("click", () => {
     state.query = "";
     els.search.value = "";
@@ -63,6 +82,7 @@ async function refreshState(message) {
   state.tabs = result.tabs || [];
   state.positions = result.positions || {};
   state.shots = result.shots || {};
+  state.boardZoom = clamp(Number(result.viewport?.zoom || 1), BOARD_ZOOM.min, BOARD_ZOOM.max);
   state.hasBroadCapture = Boolean(result.hasBroadCapture);
   render();
   if (message) setStatus(message);
@@ -91,6 +111,7 @@ function render() {
   els.tabCount.textContent = String(state.tabs.length);
   els.shotCount.textContent = String(Object.keys(state.shots).length);
   els.captureState.textContent = state.hasBroadCapture ? "Ready" : "Missing";
+  applyBoardZoom();
 
   if (!state.tabs.length) {
     els.canvas.innerHTML = '<div class="empty-state">No readable tabs yet.</div>';
@@ -187,8 +208,12 @@ function createPlaceholder() {
 async function activateTab(tabId) {
   const tab = state.tabs.find((item) => item.id === tabId);
   if (!tab) return;
-  await sendMessage({ type: "activateTab", tabId: tab.id, windowId: tab.windowId });
-  await refreshState(`Switched to ${tab.title}. Canvas stayed open.`);
+  setStatus(`Switching to ${tab.title}...`);
+  const result = await sendMessage({ type: "activateAndCaptureTab", tabId: tab.id, windowId: tab.windowId });
+  const message = result.captureError
+    ? `Switched to ${tab.title}. Snapshot skipped: ${result.captureError}`
+    : `Switched to ${tab.title} and refreshed its snapshot.`;
+  await refreshState(message);
 }
 
 async function captureActiveTab() {
@@ -232,14 +257,15 @@ function startCardPointer(event, tabId) {
     x: position.x,
     y: position.y,
     scale: position.scale,
+    boardZoom: state.boardZoom,
   };
 
   card.classList.add("is-dragging");
   card.setPointerCapture(event.pointerId);
 
   function move(moveEvent) {
-    const dx = moveEvent.clientX - state.dragging.startX;
-    const dy = moveEvent.clientY - state.dragging.startY;
+    const dx = (moveEvent.clientX - state.dragging.startX) / state.dragging.boardZoom;
+    const dy = (moveEvent.clientY - state.dragging.startY) / state.dragging.boardZoom;
     if (Math.abs(dx) + Math.abs(dy) > 4) moved = true;
     state.positions[key] = {
       x: state.dragging.x + dx,
@@ -268,6 +294,7 @@ function startCardPointer(event, tabId) {
 }
 
 async function zoomCard(event, tabId) {
+  if (event.ctrlKey || event.metaKey) return;
   event.preventDefault();
   event.stopPropagation();
   const key = String(tabId);
@@ -294,6 +321,59 @@ async function arrangeCards() {
 
 async function saveLayout() {
   await sendMessage({ type: "saveLayout", positions: state.positions });
+}
+
+function zoomBoardWithWheel(event) {
+  if (!event.ctrlKey && !event.metaKey) return;
+  event.preventDefault();
+  const direction = event.deltaY > 0 ? -1 : 1;
+  setBoardZoom(state.boardZoom + direction * BOARD_ZOOM.step, {
+    anchorEvent: event,
+    persist: true,
+  });
+}
+
+function setBoardZoom(value, options = {}) {
+  const next = roundZoom(clamp(value, BOARD_ZOOM.min, BOARD_ZOOM.max));
+  if (next === state.boardZoom) return;
+
+  const anchor = options.anchorEvent ? boardPointFromEvent(options.anchorEvent) : null;
+  state.boardZoom = next;
+  applyBoardZoom();
+
+  if (anchor && options.anchorEvent) {
+    const rect = els.canvasWrap.getBoundingClientRect();
+    els.canvasWrap.scrollLeft = anchor.x * next - (options.anchorEvent.clientX - rect.left);
+    els.canvasWrap.scrollTop = anchor.y * next - (options.anchorEvent.clientY - rect.top);
+  }
+
+  if (options.persist) queueSaveViewport();
+}
+
+function applyBoardZoom() {
+  const zoom = state.boardZoom;
+  els.canvasPlane.style.width = `${CANVAS_SIZE.width * zoom}px`;
+  els.canvasPlane.style.height = `${CANVAS_SIZE.height * zoom}px`;
+  els.canvas.style.transform = `scale(${zoom})`;
+  els.zoomSlider.value = String(Math.round(zoom * 100));
+  els.zoomValue.textContent = `${Math.round(zoom * 100)}%`;
+}
+
+function boardPointFromEvent(event) {
+  const rect = els.canvasWrap.getBoundingClientRect();
+  return {
+    x: (els.canvasWrap.scrollLeft + event.clientX - rect.left) / state.boardZoom,
+    y: (els.canvasWrap.scrollTop + event.clientY - rect.top) / state.boardZoom,
+  };
+}
+
+function queueSaveViewport() {
+  clearTimeout(viewportSaveTimer);
+  viewportSaveTimer = setTimeout(saveViewport, 220);
+}
+
+async function saveViewport() {
+  await sendMessage({ type: "saveViewport", viewport: { zoom: state.boardZoom } });
 }
 
 function visibleTabs() {
@@ -336,6 +416,10 @@ function faviconLetter(title) {
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
+}
+
+function roundZoom(value) {
+  return Math.round(value * 100) / 100;
 }
 
 function setStatus(message) {

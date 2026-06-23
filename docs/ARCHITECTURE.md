@@ -9,7 +9,9 @@ The first version is a spatial navigation layer, not a live webpage embedder:
 - Cards represent real Chrome tabs.
 - Clicking a card activates the real tab.
 - Cards can be dragged and resized.
+- The board itself can be zoomed independently from individual cards.
 - The active tab can be captured as a cached screenshot.
+- Clicking a card activates that tab and then attempts to refresh its cached screenshot.
 - Layout and screenshots are stored locally.
 - Screenshot access is declared as a core host permission because the product depends on reliable snapshots.
 

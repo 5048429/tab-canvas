@@ -6,6 +6,7 @@ Tab Canvas can be a real Chrome extension as a persistent side panel:
 
 - It can read tab metadata, activate tabs, move tabs, close tabs, and save local layout state.
 - It can capture visible page content with `tabs.captureVisibleTab` when host access is granted.
+- It cannot directly snapshot hidden background tabs; the extension must activate a tab before capturing its visible content.
 - It cannot hide or replace Chrome's native tab strip, address bar, or bookmarks bar.
 - It cannot force the side panel to the left; Chrome exposes the current side but the user chooses the side in browser settings.
 - It cannot live-render arbitrary existing tabs inside the extension UI. The practical extension version is a snapshot canvas plus fast switching to the real active tab.

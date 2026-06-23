@@ -1,6 +1,7 @@
 const STORAGE_KEYS = {
   positions: "tabCanvas.positions",
   shots: "tabCanvas.shots",
+  viewport: "tabCanvas.viewport",
 };
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -55,10 +56,14 @@ async function handleMessage(message) {
       return { hasBroadCapture: await hasRequiredCaptureAccess() };
     case "activateTab":
       return activateTab(message.tabId, message.windowId);
+    case "activateAndCaptureTab":
+      return activateAndCaptureTab(message.tabId, message.windowId);
     case "captureTab":
       return captureTab(message.tabId, message.windowId);
     case "saveLayout":
       return saveLayout(message.positions);
+    case "saveViewport":
+      return saveViewport(message.viewport);
     case "clearShot":
       return clearShot(message.tabId);
     case "warmup":
@@ -71,7 +76,7 @@ async function handleMessage(message) {
 async function getState() {
   const [tabs, storage, hasBroadCapture] = await Promise.all([
     chrome.tabs.query({}),
-    chrome.storage.local.get([STORAGE_KEYS.positions, STORAGE_KEYS.shots]),
+    chrome.storage.local.get([STORAGE_KEYS.positions, STORAGE_KEYS.shots, STORAGE_KEYS.viewport]),
     hasRequiredCaptureAccess(),
   ]);
 
@@ -79,6 +84,7 @@ async function getState() {
     tabs: tabs.map(publicTab),
     positions: storage[STORAGE_KEYS.positions] || {},
     shots: storage[STORAGE_KEYS.shots] || {},
+    viewport: storage[STORAGE_KEYS.viewport] || { zoom: 1 },
     hasBroadCapture,
   };
 }
@@ -93,7 +99,23 @@ async function activateTab(tabId, windowId) {
 async function captureTab(tabId, windowId) {
   if (!tabId || !windowId) throw new Error("Missing capture target");
   const target = await activateTab(tabId, windowId);
-  const url = target.tab?.url || "";
+  const shot = await captureVisibleTabSnapshot(target.tab, windowId);
+  return { ...target, shot };
+}
+
+async function activateAndCaptureTab(tabId, windowId) {
+  if (!tabId || !windowId) throw new Error("Missing tab target");
+  const target = await activateTab(tabId, windowId);
+  try {
+    const shot = await captureVisibleTabSnapshot(target.tab, windowId);
+    return { ...target, shot };
+  } catch (error) {
+    return { ...target, captureError: error.message || String(error) };
+  }
+}
+
+async function captureVisibleTabSnapshot(tab, windowId) {
+  const url = tab?.url || "";
   const blockedReason = captureBlockedReason(url);
   if (blockedReason) throw new Error(blockedReason);
   if (!(await hasRequiredCaptureAccess())) {
@@ -117,14 +139,14 @@ async function captureTab(tabId, windowId) {
 
   const storage = await chrome.storage.local.get([STORAGE_KEYS.shots]);
   const shots = storage[STORAGE_KEYS.shots] || {};
-  shots[String(tabId)] = {
+  shots[String(tab.id)] = {
     capturedAt: Date.now(),
     dataUrl,
   };
 
   const trimmed = trimShots(shots, 36);
   await chrome.storage.local.set({ [STORAGE_KEYS.shots]: trimmed });
-  return { shot: trimmed[String(tabId)] };
+  return trimmed[String(tab.id)];
 }
 
 function captureBlockedReason(url) {
@@ -173,6 +195,13 @@ async function saveLayout(positions) {
   return {};
 }
 
+async function saveViewport(viewport) {
+  if (!viewport || typeof viewport !== "object") return {};
+  const zoom = clamp(Number(viewport.zoom || 1), 0.55, 1.8);
+  await chrome.storage.local.set({ [STORAGE_KEYS.viewport]: { zoom } });
+  return {};
+}
+
 async function clearShot(tabId) {
   const storage = await chrome.storage.local.get([STORAGE_KEYS.shots]);
   const shots = storage[STORAGE_KEYS.shots] || {};
@@ -204,6 +233,10 @@ function trimShots(shots, limit) {
       .sort(([, a], [, b]) => (b.capturedAt || 0) - (a.capturedAt || 0))
       .slice(0, limit),
   );
+}
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
 }
 
 function notifyPanelTabsChanged() {
