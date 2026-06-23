@@ -16,6 +16,10 @@ The first version is a spatial navigation layer, not a live webpage embedder:
 
 Chrome controls whether the side panel appears on the left or right. Extensions can read layout with `chrome.sidePanel.getLayout()`, but cannot force the side. The UI detects the side and tells the user to set Chrome Side Panel to Left for this product.
 
+## Browser chrome constraint
+
+Chrome extensions cannot hide or replace the native tab strip, address bar, or bookmarks bar. The extension can add a side panel, popup, content UI on allowed pages, shortcut commands, and tab-management actions. A product that truly removes Chrome's native tab strip needs a custom browser shell, Chromium fork, or a browser that supports that level of UI customization.
+
 ## Files
 
 - `manifest.json`: MV3 manifest, permissions, action, side panel, command.

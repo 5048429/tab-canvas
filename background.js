@@ -70,7 +70,7 @@ async function getState() {
   const [tabs, storage, hasBroadCapture] = await Promise.all([
     chrome.tabs.query({}),
     chrome.storage.local.get([STORAGE_KEYS.positions, STORAGE_KEYS.shots]),
-    Promise.resolve(false),
+    chrome.permissions.contains({ origins: ["<all_urls>"] }),
   ]);
 
   return {
@@ -101,7 +101,7 @@ async function captureTab(tabId, windowId) {
     });
   } catch (error) {
     throw new Error(
-      "Chrome blocked this capture. Click the extension icon, then Capture active again.",
+      "Chrome blocked this capture. Grant capture permission, then try again.",
     );
   }
 
