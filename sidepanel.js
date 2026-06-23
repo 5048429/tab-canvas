@@ -8,7 +8,6 @@ const state = {
   shots: {},
   boardZoom: 1,
   query: "",
-  hasBroadCapture: false,
   dragging: null,
 };
 
@@ -17,19 +16,10 @@ const els = {
   canvasPlane: document.querySelector("#canvasPlane"),
   canvas: document.querySelector("#canvas"),
   search: document.querySelector("#searchInput"),
-  layoutHint: document.querySelector("#layoutHint"),
   tabCount: document.querySelector("#tabCount"),
-  shotCount: document.querySelector("#shotCount"),
-  captureState: document.querySelector("#captureState"),
   status: document.querySelector("#statusText"),
-  refresh: document.querySelector("#refreshButton"),
-  capture: document.querySelector("#captureButton"),
-  grant: document.querySelector("#grantButton"),
-  arrange: document.querySelector("#arrangeButton"),
-  clearSearch: document.querySelector("#clearSearchButton"),
   zoomOut: document.querySelector("#zoomOutButton"),
   zoomIn: document.querySelector("#zoomInButton"),
-  zoomReset: document.querySelector("#zoomResetButton"),
   zoomSlider: document.querySelector("#zoomSlider"),
   zoomValue: document.querySelector("#zoomValue"),
 };
@@ -40,28 +30,17 @@ init();
 
 async function init() {
   bindEvents();
-  await readPanelLayout();
   await chrome.runtime.sendMessage({ type: "warmup" }).catch(() => {});
-  await refreshState("Click a card to switch the real browser tab.");
+  await refreshState("Ready.");
 }
 
 function bindEvents() {
-  els.refresh.addEventListener("click", () => refreshState("Tabs refreshed."));
-  els.capture.addEventListener("click", captureActiveTab);
-  els.grant.addEventListener("click", checkCaptureAccess);
-  els.arrange.addEventListener("click", arrangeCards);
   els.zoomOut.addEventListener("click", () => setBoardZoom(state.boardZoom - BOARD_ZOOM.step, { persist: true }));
   els.zoomIn.addEventListener("click", () => setBoardZoom(state.boardZoom + BOARD_ZOOM.step, { persist: true }));
-  els.zoomReset.addEventListener("click", () => setBoardZoom(1, { persist: true }));
   els.zoomSlider.addEventListener("input", () => {
     setBoardZoom(Number(els.zoomSlider.value) / 100, { persist: true });
   });
   els.canvasWrap.addEventListener("wheel", zoomBoardWithWheel, { passive: false });
-  els.clearSearch.addEventListener("click", () => {
-    state.query = "";
-    els.search.value = "";
-    render();
-  });
 
   ["input", "search", "change", "keyup"].forEach((eventName) => {
     els.search.addEventListener(eventName, () => {
@@ -75,6 +54,8 @@ function bindEvents() {
       refreshState();
     }
   });
+
+  window.addEventListener("keydown", handleKeyDown);
 }
 
 async function refreshState(message) {
@@ -83,34 +64,15 @@ async function refreshState(message) {
   state.positions = result.positions || {};
   state.shots = result.shots || {};
   state.boardZoom = clamp(Number(result.viewport?.zoom || 1), BOARD_ZOOM.min, BOARD_ZOOM.max);
-  state.hasBroadCapture = Boolean(result.hasBroadCapture);
   render();
   if (message) setStatus(message);
-}
-
-async function readPanelLayout() {
-  if (!chrome.sidePanel?.getLayout) {
-    els.layoutHint.textContent = "Set Chrome side panel to the left in browser settings.";
-    return;
-  }
-
-  try {
-    const layout = await chrome.sidePanel.getLayout({});
-    els.layoutHint.textContent =
-      layout?.side === "left"
-        ? "Panel is on the left. Good for fast switching."
-        : "For this product, set Chrome side panel to Left in browser settings.";
-  } catch {
-    els.layoutHint.textContent = "Set Chrome side panel to the left in browser settings.";
-  }
 }
 
 function render() {
   const visible = visibleTabs();
   const visibleIds = new Set(visible.map((tab) => String(tab.id)));
-  els.tabCount.textContent = String(state.tabs.length);
-  els.shotCount.textContent = String(Object.keys(state.shots).length);
-  els.captureState.textContent = state.hasBroadCapture ? "Ready" : "Missing";
+  els.tabCount.textContent =
+    visible.length === state.tabs.length ? `${state.tabs.length} tabs` : `${visible.length}/${state.tabs.length}`;
   applyBoardZoom();
 
   if (!state.tabs.length) {
@@ -216,32 +178,6 @@ async function activateTab(tabId) {
   await refreshState(message);
 }
 
-async function captureActiveTab() {
-  const active = state.tabs.find((tab) => tab.active);
-  if (!active) {
-    setStatus("No active tab to capture.");
-    return;
-  }
-
-  try {
-    await sendMessage({ type: "captureTab", tabId: active.id, windowId: active.windowId });
-    await refreshState(`Captured ${active.title}.`);
-  } catch (error) {
-    setStatus(error.message || "Capture failed.");
-  }
-}
-
-async function checkCaptureAccess() {
-  const result = await sendMessage({ type: "checkCaptureAccess" });
-  state.hasBroadCapture = Boolean(result.hasBroadCapture);
-  render();
-  setStatus(
-    state.hasBroadCapture
-      ? "Capture access is ready for normal web pages."
-      : "Capture access is missing. Reload the extension and accept site access.",
-  );
-}
-
 function startCardPointer(event, tabId) {
   if (event.button !== 0) return;
 
@@ -309,16 +245,6 @@ async function zoomCard(event, tabId) {
   await saveLayout();
 }
 
-async function arrangeCards() {
-  state.positions = {};
-  state.tabs.forEach((tab, index) => {
-    state.positions[String(tab.id)] = defaultPosition(index);
-  });
-  render();
-  await saveLayout();
-  setStatus("Cards arranged.");
-}
-
 async function saveLayout() {
   await sendMessage({ type: "saveLayout", positions: state.positions });
 }
@@ -376,6 +302,36 @@ async function saveViewport() {
   await sendMessage({ type: "saveViewport", viewport: { zoom: state.boardZoom } });
 }
 
+async function arrangeCards() {
+  state.positions = {};
+  state.tabs.forEach((tab, index) => {
+    state.positions[String(tab.id)] = defaultPosition(index);
+  });
+  render();
+  await saveLayout();
+  setStatus("Arranged.");
+}
+
+function handleKeyDown(event) {
+  if (event.key === "Escape" && state.query) {
+    state.query = "";
+    els.search.value = "";
+    render();
+    return;
+  }
+
+  if ((event.ctrlKey || event.metaKey) && event.key === "0") {
+    event.preventDefault();
+    setBoardZoom(1, { persist: true });
+    return;
+  }
+
+  if (event.altKey && event.key.toLowerCase() === "a") {
+    event.preventDefault();
+    arrangeCards();
+  }
+}
+
 function visibleTabs() {
   const query = state.query.trim().toLowerCase();
   if (!query) return state.tabs;
@@ -387,7 +343,7 @@ function visibleTabs() {
 function defaultPosition(index) {
   return {
     x: 18 + (index % 2) * 244,
-    y: 18 + Math.floor(index / 2) * 184,
+    y: 76 + Math.floor(index / 2) * 184,
     scale: index === 0 ? 1 : 0.92,
   };
 }

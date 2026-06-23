@@ -10,10 +10,10 @@ The first version is a spatial navigation layer, not a live webpage embedder:
 - Clicking a card activates the real tab.
 - Cards can be dragged and resized.
 - The board itself can be zoomed independently from individual cards.
-- The active tab can be captured as a cached screenshot.
 - Clicking a card activates that tab and then attempts to refresh its cached screenshot.
 - Layout and screenshots are stored locally.
 - Screenshot access is declared as a core host permission because the product depends on reliable snapshots.
+- The side panel UI is intentionally minimal: the whiteboard is primary, with search and board zoom as lightweight overlays.
 
 ## Left side panel constraint
 
@@ -44,7 +44,7 @@ Agents should avoid overlapping write scopes. Main integrator reviews permission
 
 ## Next milestones
 
-1. Add a real card minimap and zoom controls.
+1. Add a real card minimap.
 2. Add groups or clusters.
 3. Add stale snapshot refresh indicators.
 4. Add a snapshot delete button and storage budget UI.

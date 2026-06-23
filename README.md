@@ -24,8 +24,7 @@ Chrome extensions cannot hide Chrome's native tab strip or bookmarks bar. This p
 - Click a card to activate the real browser tab.
 - Drag cards to organize the tab map.
 - Use the mouse wheel on a card to resize it.
-- Use the board zoom controls, or Ctrl/Command + wheel, to zoom the whole canvas.
-- Capture the active tab as a cached visual snapshot.
+- Use the compact zoom strip, or Ctrl/Command + wheel, to zoom the whole canvas.
 - Clicking a card also refreshes that tab's snapshot after switching to it.
 - Declares capture host access because screenshots are a core product capability.
 - Saves card layout and snapshots in extension storage.

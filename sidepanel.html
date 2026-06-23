@@ -8,57 +8,28 @@
   </head>
   <body>
     <main class="app">
-      <header class="header">
-        <div class="brand-row">
-          <div>
-            <h1>Tab Canvas</h1>
-            <p id="layoutHint">Loading browser panel layout...</p>
-          </div>
-          <button class="quiet-button" id="refreshButton" type="button">Refresh</button>
-        </div>
-
-        <div class="search-row">
-          <input id="searchInput" type="search" placeholder="Search tabs" autocomplete="off" />
-          <button class="quiet-button" id="clearSearchButton" type="button">Clear</button>
-        </div>
-
-        <div class="toolbar">
-          <button class="primary-button" id="captureButton" type="button">Capture active</button>
-          <button class="quiet-button" id="grantButton" type="button">Check access</button>
-          <button class="quiet-button" id="arrangeButton" type="button">Arrange</button>
-        </div>
-
-        <div class="zoom-row">
-          <button class="quiet-button icon-button" id="zoomOutButton" type="button" aria-label="Zoom board out">-</button>
-          <input id="zoomSlider" type="range" min="55" max="180" step="5" value="100" aria-label="Board zoom" />
-          <strong id="zoomValue">100%</strong>
-          <button class="quiet-button icon-button" id="zoomInButton" type="button" aria-label="Zoom board in">+</button>
-          <button class="quiet-button" id="zoomResetButton" type="button">Reset</button>
-        </div>
-      </header>
-
-      <section class="stats">
-        <div>
-          <strong id="tabCount">0</strong>
-          <span>tabs</span>
-        </div>
-        <div>
-          <strong id="shotCount">0</strong>
-          <span>snapshots</span>
-        </div>
-        <div>
-          <strong id="captureState">Limited</strong>
-          <span>capture</span>
-        </div>
-      </section>
-
       <section class="canvas-wrap" id="canvasWrap" aria-label="Tab canvas">
         <div class="canvas-plane" id="canvasPlane">
           <div class="canvas" id="canvas"></div>
         </div>
       </section>
 
-      <footer class="footer">
+      <header class="top-strip">
+        <div class="brand-lockup">
+          <strong>Tab Canvas</strong>
+          <span id="tabCount">0 tabs</span>
+        </div>
+        <input id="searchInput" type="search" placeholder="Search" autocomplete="off" />
+      </header>
+
+      <aside class="zoom-strip" aria-label="Board zoom">
+        <button class="icon-button" id="zoomOutButton" type="button" aria-label="Zoom board out">-</button>
+        <input id="zoomSlider" type="range" min="55" max="180" step="5" value="100" aria-label="Board zoom" />
+        <span id="zoomValue">100%</span>
+        <button class="icon-button" id="zoomInButton" type="button" aria-label="Zoom board in">+</button>
+      </aside>
+
+      <footer class="status-pill" aria-live="polite">
         <span id="statusText">Click a card to switch the real browser tab.</span>
       </footer>
     </main>
