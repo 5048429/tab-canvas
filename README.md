@@ -28,8 +28,7 @@ Chrome extensions cannot hide Chrome's native tab strip or bookmarks bar. This p
 - Drag empty board space to pan around the canvas.
 - Use the mouse wheel on a card to resize it.
 - Use the compact zoom strip, or Ctrl/Command + wheel, to zoom the whole canvas.
-- Toggle the canvas with Ctrl+Shift+Y, Command+Shift+Y on macOS, or the slim left-edge handle on normal web pages.
-- Press Escape in the canvas to close it; if search has text, Escape clears search first.
+- Toggle the canvas with the visible left-edge handle on normal web pages.
 - Clicking a card also refreshes that tab's snapshot after switching to it.
 - Declares capture host access because screenshots are a core product capability.
 - Saves card layout and snapshots in extension storage.

@@ -20,16 +20,6 @@ chrome.runtime.onStartup.addListener(() => {
   setPanelBehavior().catch(() => {});
 });
 
-chrome.commands.onCommand.addListener(async (command) => {
-  if (command !== "toggle-canvas") return;
-  try {
-    await toggleCanvasPanel();
-  } catch {
-    // Keyboard shortcuts are best-effort because Chrome can restrict panel opening
-    // outside direct user activation in some surfaces.
-  }
-});
-
 if (chrome.sidePanel?.onOpened) {
   chrome.sidePanel.onOpened.addListener((info) => {
     if (info?.windowId) openPanelWindows.add(info.windowId);

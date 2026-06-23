@@ -24,7 +24,7 @@ Chrome controls whether the side panel appears on the left or right. Extensions 
 
 ## Browser chrome constraint
 
-Chrome extensions cannot hide or replace the native tab strip, address bar, or bookmarks bar. The extension can add a side panel, popup, content UI on allowed pages, shortcut commands, and tab-management actions. A product that truly removes Chrome's native tab strip needs a custom browser shell, Chromium fork, or a browser that supports that level of UI customization.
+Chrome extensions cannot hide or replace the native tab strip, address bar, or bookmarks bar. The extension can add a side panel, popup, content UI on allowed pages, and tab-management actions. A product that truly removes Chrome's native tab strip needs a custom browser shell, Chromium fork, or a browser that supports that level of UI customization.
 
 ## Files
 

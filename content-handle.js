@@ -17,23 +17,26 @@
         z-index: 2147483646;
         left: 0;
         top: 50%;
-        width: 22px;
-        height: 88px;
+        width: 38px;
+        height: 126px;
         margin: 0;
         padding: 0;
         transform: translateY(-50%);
-        border: 1px solid rgba(255, 255, 255, 0.22);
+        border: 1px solid rgba(244, 245, 239, 0.34);
         border-left: 0;
-        border-radius: 0 9px 9px 0;
-        background: rgba(17, 19, 18, 0.72);
-        box-shadow: 0 12px 34px rgba(0, 0, 0, 0.26);
-        color: #f4f5ef;
+        border-radius: 0 12px 12px 0;
+        background: linear-gradient(180deg, #63d991, #49c87d);
+        box-shadow:
+          0 16px 40px rgba(0, 0, 0, 0.28),
+          0 0 0 1px rgba(18, 59, 39, 0.24);
+        color: #102018;
         cursor: pointer;
-        font: 750 11px/1 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        font: 900 12px/1 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
         letter-spacing: 0;
-        opacity: 0.34;
+        opacity: 0.92;
         transition:
           opacity 160ms ease,
+          box-shadow 160ms ease,
           background 160ms ease,
           transform 160ms ease;
         writing-mode: vertical-rl;
@@ -41,14 +44,17 @@
 
       button:hover,
       button:focus-visible {
-        background: rgba(17, 19, 18, 0.88);
-        opacity: 0.92;
+        background: linear-gradient(180deg, #7be3a5, #54d486);
+        box-shadow:
+          0 18px 46px rgba(0, 0, 0, 0.34),
+          0 0 0 3px rgba(73, 200, 125, 0.22);
+        opacity: 1;
         outline: 0;
       }
 
       button:active,
       button.is-busy {
-        transform: translateY(-50%) translateX(1px);
+        transform: translateY(-50%) translateX(2px);
       }
     </style>
     <button type="button" aria-label="Toggle Tab Canvas" title="Toggle Tab Canvas">Canvas</button>

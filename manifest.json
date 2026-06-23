@@ -21,14 +21,5 @@
       "js": ["content-handle.js"],
       "run_at": "document_idle"
     }
-  ],
-  "commands": {
-    "toggle-canvas": {
-      "suggested_key": {
-        "default": "Ctrl+Shift+Y",
-        "mac": "Command+Shift+Y"
-      },
-      "description": "Toggle Tab Canvas"
-    }
-  }
+  ]
 }
