@@ -15,7 +15,7 @@
       button {
         position: fixed;
         z-index: 2147483646;
-        left: 0;
+        right: 0;
         top: 50%;
         width: 38px;
         height: 126px;
@@ -23,8 +23,8 @@
         padding: 0;
         transform: translateY(-50%);
         border: 1px solid rgba(244, 245, 239, 0.34);
-        border-left: 0;
-        border-radius: 0 12px 12px 0;
+        border-right: 0;
+        border-radius: 12px 0 0 12px;
         background: linear-gradient(180deg, #63d991, #49c87d);
         box-shadow:
           0 16px 40px rgba(0, 0, 0, 0.28),
@@ -54,7 +54,7 @@
 
       button:active,
       button.is-busy {
-        transform: translateY(-50%) translateX(2px);
+        transform: translateY(-50%) translateX(-2px);
       }
     </style>
     <button type="button" aria-label="Toggle Tab Canvas" title="Toggle Tab Canvas">Canvas</button>
@@ -67,8 +67,8 @@
       const response = await chrome.runtime.sendMessage({ type: "toggleCanvasPanel" });
       if (!response?.ok) throw new Error(response?.error || "Toggle failed");
     } catch {
-      // The handle is intentionally quiet; keyboard shortcut still works if this
-      // page cannot open the side panel from a content-script gesture.
+      // The handle stays quiet if this page cannot open the side panel from a
+      // content-script gesture.
     } finally {
       window.setTimeout(() => button.classList.remove("is-busy"), 220);
     }
