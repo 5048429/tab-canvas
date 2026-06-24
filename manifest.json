@@ -21,5 +21,11 @@
       "js": ["content-handle.js"],
       "run_at": "document_idle"
     }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["sidepanel.html", "sidepanel.css", "sidepanel.js"],
+      "matches": ["http://*/*", "https://*/*"]
+    }
   ]
 }

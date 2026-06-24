@@ -1,6 +1,6 @@
 # Tab Canvas
 
-Spatial tab navigation for Chrome. The first version runs as a Manifest V3 side panel: the whiteboard stays open while the real browser tab changes.
+Spatial tab navigation for Chrome. The first version runs as a Manifest V3 extension with a page overlay on normal web pages and a native side-panel fallback on restricted pages.
 
 ## Repository name
 
@@ -29,7 +29,7 @@ Chrome extensions cannot hide Chrome's native tab strip or bookmarks bar. This p
 - Use the mouse wheel on a card to resize it.
 - Use the compact zoom strip, or Ctrl/Command + wheel, to zoom the whole canvas.
 - Toggle the canvas with the visible right-edge handle on normal web pages.
-- When reopening from the handle or toolbar icon, applies the last saved side-panel width before the panel is shown.
+- Drag the overlay canvas left edge to resize it; closing and reopening restores the last saved width.
 - Automatically snapshots the active tab the first time it is visited or when its URL changes.
 - Clicking a card also refreshes that tab's snapshot after switching to it.
 - Declares capture host access because screenshots are a core product capability.
@@ -39,7 +39,7 @@ Chrome extensions cannot hide Chrome's native tab strip or bookmarks bar. This p
 
 - The extension cannot force Side Panel to the left. Users must set that in Chrome.
 - The extension cannot replace or hide Chrome's native tab strip or bookmarks bar.
-- Exact side-panel width is still browser-managed because Chrome does not expose a direct width API. The extension saves the latest panel width and applies it as an early page width hint on the next open.
+- Native Side Panel width is browser-managed because Chrome does not expose a direct width API. On normal web pages, Tab Canvas uses its own overlay surface so the resized width can be restored exactly.
 - Screenshots require host access and capture page content, not Chrome's browser UI.
 - Chrome can only capture visible tab content, so background tabs are snapshotted after they are activated.
 - Chrome internal pages such as `chrome://extensions`, extension pages, DevTools pages, and some local `file://` pages cannot be captured from the side panel.

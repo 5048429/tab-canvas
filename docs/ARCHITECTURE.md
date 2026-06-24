@@ -2,7 +2,7 @@
 
 ## Product shape
 
-Tab Canvas is a Chrome Manifest V3 extension. The whiteboard lives in Chrome Side Panel and is intended to be placed on the left by the user. The page area remains the real browser tab.
+Tab Canvas is a Chrome Manifest V3 extension. On normal web pages, the whiteboard lives in a right-side extension overlay so its resized width can be restored exactly after closing and reopening. On restricted pages where content scripts cannot run, the extension can fall back to Chrome Side Panel.
 
 The first version is a spatial navigation layer, not a live webpage embedder:
 
@@ -17,11 +17,12 @@ The first version is a spatial navigation layer, not a live webpage embedder:
 - Screenshot access is declared as a core host permission because the product depends on reliable snapshots.
 - The side panel UI is intentionally minimal: the whiteboard is primary, with search and board zoom as lightweight overlays.
 - The canvas can be toggled from a slim right-edge content-script handle on normal web pages.
+- The overlay canvas has a draggable left edge and saves the last width in extension storage.
 - Active tabs are automatically snapshotted after activation or page load when no current screenshot exists for that URL.
 
 ## Left side panel constraint
 
-Chrome controls whether the side panel appears on the left or right. Extensions can read layout with `chrome.sidePanel.getLayout()`, but cannot force the side. The UI detects the side and tells the user to set Chrome Side Panel to Left for this product.
+Chrome controls whether the native side panel appears on the left or right. Extensions cannot force the side or set the native side-panel width. The normal-page overlay is used when exact width restoration matters.
 
 ## Browser chrome constraint
 
@@ -31,7 +32,7 @@ Chrome extensions cannot hide or replace the native tab strip, address bar, or b
 
 - `manifest.json`: MV3 manifest, permissions, action, side panel, command.
 - `background.js`: service worker, Chrome API bridge, tab sync, capture, storage.
-- `content-handle.js`: tiny in-page handle for opening or closing the side panel without using the Chrome toolbar.
+- `content-handle.js`: in-page handle plus resizable overlay host for opening or closing Tab Canvas without using the Chrome toolbar.
 - `sidepanel.html`: side panel shell.
 - `sidepanel.css`: side panel UI.
 - `sidepanel.js`: canvas rendering and interactions.

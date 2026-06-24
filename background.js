@@ -9,6 +9,7 @@ const PANEL_WIDTH = { min: 240, max: 1600 };
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const openPanelWindows = new Set();
 const panelPortsByWindow = new Map();
+const overlayOpenWindows = new Map();
 const autoCaptureTimers = new Map();
 
 async function setPanelBehavior() {
@@ -30,7 +31,7 @@ chrome.runtime.onStartup.addListener(() => {
 });
 
 chrome.action?.onClicked?.addListener((tab) => {
-  toggleCanvasPanel({ tab }).catch(() => {});
+  toggleCanvasSurfaceFromAction(tab).catch(() => {});
 });
 
 if (chrome.sidePanel?.onOpened) {
@@ -71,8 +72,9 @@ chrome.tabs.onActivated.addListener((activeInfo) => {
   notifyPanelTabsChanged();
   chrome.tabs
     .get(activeInfo.tabId)
-    .then((tab) => {
-      injectHandleIntoTab(tab);
+    .then(async (tab) => {
+      await injectHandleIntoTab(tab);
+      await syncCanvasOverlayIntoTab(tab);
       scheduleAutoCapture(tab, "activated");
     })
     .catch(() => {});
@@ -90,8 +92,9 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
   if (changeInfo.status === "complete" || changeInfo.url) {
     chrome.tabs
       .get(tabId)
-      .then((tab) => {
-        injectHandleIntoTab(tab);
+      .then(async (tab) => {
+        await injectHandleIntoTab(tab);
+        await syncCanvasOverlayIntoTab(tab);
         if (tab.active) scheduleAutoCapture(tab, "updated");
       })
       .catch(() => {});
@@ -134,6 +137,12 @@ async function handleMessage(message, sender) {
       return saveLayout(message.positions);
     case "saveViewport":
       return saveViewport(message.viewport, sender);
+    case "getCanvasOverlayState":
+      return getCanvasOverlayState(sender);
+    case "setCanvasOverlayState":
+      return setCanvasOverlayState(message, sender);
+    case "saveCanvasOverlayWidth":
+      return saveCanvasOverlayWidth(message, sender);
     case "clearShot":
       return clearShot(message.tabId);
     case "warmup":
@@ -160,6 +169,61 @@ async function toggleCanvasPanel(sender) {
   await openPromise;
   openPanelWindows.add(windowId);
   return { panelState: "open" };
+}
+
+async function toggleCanvasSurfaceFromAction(tab) {
+  if (tab?.id && isInjectablePage(tab.url)) {
+    try {
+      await injectHandleIntoTab(tab);
+      await chrome.tabs.sendMessage(tab.id, { type: "toggleCanvasOverlay" });
+      return;
+    } catch {
+      // Fall back to the native side panel on pages where content messaging fails.
+    }
+  }
+
+  await toggleCanvasPanel({ tab });
+}
+
+async function getCanvasOverlayState(sender) {
+  const windowId = await resolveWindowId(sender);
+  if (!windowId) return { isOpen: false, width: 0 };
+  return {
+    isOpen: overlayOpenWindows.has(windowId),
+    width: await resolvePanelWidthForOpen(windowId),
+  };
+}
+
+async function setCanvasOverlayState(message, sender) {
+  const windowId = await resolveWindowId(sender);
+  if (!windowId) return { isOpen: false, width: 0 };
+
+  if (message.open) {
+    overlayOpenWindows.set(windowId, true);
+  } else {
+    overlayOpenWindows.delete(windowId);
+  }
+
+  if (message.width) {
+    await saveViewport({ panelWidth: message.width }, sender);
+  }
+
+  return getCanvasOverlayState(sender);
+}
+
+async function saveCanvasOverlayWidth(message, sender) {
+  return saveViewport({ panelWidth: message.width }, sender);
+}
+
+async function syncCanvasOverlayIntoTab(tab) {
+  if (!tab?.id || !tab.active || !overlayOpenWindows.has(tab.windowId) || !isInjectablePage(tab.url)) return;
+  const { width } = await getCanvasOverlayState({ tab });
+  await chrome.tabs
+    .sendMessage(tab.id, {
+      type: "showCanvasOverlay",
+      width,
+    })
+    .catch(() => {});
 }
 
 async function toggleCanvasFromHandle(sender) {

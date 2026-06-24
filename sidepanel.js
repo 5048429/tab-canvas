@@ -4,6 +4,7 @@ const CARD_SIZE = { width: 220, height: 158 };
 const BOARD_ZOOM = { min: 0.55, max: 1.8, step: 0.1 };
 const PANEL_WIDTH = { min: 240, max: 1600 };
 const PANEL_WIDTH_STORAGE_KEY = "tabCanvas.panelWidth";
+const SURFACE = new URLSearchParams(window.location.search).get("surface") || "sidepanel";
 
 const state = {
   tabs: [],
@@ -38,7 +39,7 @@ let heldViewport = null;
 init();
 
 async function init() {
-  panelPort = chrome.runtime.connect({ name: "tab-canvas-panel" });
+  panelPort = chrome.runtime.connect({ name: SURFACE === "overlay" ? "tab-canvas-overlay" : "tab-canvas-panel" });
   panelPort.onMessage.addListener(handlePanelPortMessage);
   bindEvents();
   await chrome.runtime.sendMessage({ type: "warmup" }).catch(() => {});

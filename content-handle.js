@@ -1,5 +1,7 @@
 (function initTabCanvasHandle() {
   const hostId = "tab-canvas-quick-toggle";
+  const overlayId = "tab-canvas-page-overlay";
+  const overlayWidth = { min: 280, max: 1600, fallback: 520 };
   document.getElementById(hostId)?.remove();
   if (!document.documentElement || document.documentElement.dataset.tabCanvasHandle === "off") return;
   if (!hasLiveExtensionContext()) return;
@@ -119,6 +121,7 @@
   const label = shadow.querySelector(".label");
   let resetTimer = 0;
   let lastToggleAt = 0;
+  let overlaySaveTimer = 0;
 
   function resetButtonLabel(delay) {
     window.clearTimeout(resetTimer);
@@ -137,6 +140,18 @@
   }
 
   addRuntimeMessageListener((message) => {
+    if (message?.type === "toggleCanvasOverlay") {
+      toggleOverlay().catch((error) => showToggleError(error));
+      return;
+    }
+    if (message?.type === "showCanvasOverlay") {
+      openOverlay(message.width).catch((error) => showToggleError(error));
+      return;
+    }
+    if (message?.type === "hideCanvasOverlay") {
+      closeOverlay();
+      return;
+    }
     if (message?.type === "canvasToggleState") {
       setHandleState(message.state === "open" ? "open" : "closed");
       return;
@@ -153,13 +168,11 @@
     lastToggleAt = now;
     setHandleState("pending");
 
-    sendRuntimeMessage({ type: "toggleCanvasFromHandle" }).catch((error) => {
-      setHandleState("blocked");
-      button.title = error?.message || "Chrome blocked Tab Canvas. Reload the extension and this page, then try again.";
-      resetButtonLabel(1800);
-    });
-
-    resetButtonLabel(700);
+    toggleOverlay()
+      .then(() => {
+        window.clearTimeout(resetTimer);
+      })
+      .catch((error) => showToggleError(error));
   }
 
   button.addEventListener("pointerdown", (event) => {
@@ -176,6 +189,183 @@
   });
 
   document.documentElement.appendChild(host);
+  restoreOverlayIfNeeded();
+
+  function showToggleError(error) {
+    setHandleState("blocked");
+    button.title = error?.message || "Chrome blocked Tab Canvas. Reload the extension and this page, then try again.";
+    resetButtonLabel(1800);
+  }
+
+  async function restoreOverlayIfNeeded() {
+    const state = await sendRuntimeMessage({ type: "getCanvasOverlayState" }).catch(() => null);
+    if (state?.isOpen) {
+      await openOverlay(state.width).catch(() => {});
+      return;
+    }
+    if (document.getElementById(overlayId)) {
+      await closeOverlay();
+    }
+  }
+
+  async function toggleOverlay() {
+    if (document.getElementById(overlayId)) {
+      await closeOverlay();
+      return;
+    }
+    await openOverlay();
+  }
+
+  async function openOverlay(preferredWidth) {
+    if (!hasLiveExtensionContext()) throw new Error("Extension context invalidated.");
+    const existing = document.getElementById(overlayId);
+    if (existing) {
+      setHandleState("open");
+      return;
+    }
+
+    const state = preferredWidth ? null : await sendRuntimeMessage({ type: "getCanvasOverlayState" }).catch(() => null);
+    const width = resolveOverlayWidth(preferredWidth || state?.width);
+    const overlay = document.createElement("div");
+    overlay.id = overlayId;
+    overlay.style.cssText = [
+      "all: initial",
+      "position: fixed",
+      "top: 0",
+      "right: 0",
+      `width: ${width}px`,
+      "height: 100vh",
+      "z-index: 2147483646",
+      "display: block",
+      "pointer-events: auto",
+      "contain: layout style paint",
+      "box-shadow: -18px 0 42px rgba(5, 9, 7, 0.32)",
+    ].join(";");
+
+    const overlayShadow = overlay.attachShadow({ mode: "closed" });
+    overlayShadow.innerHTML = `
+      <style>
+        :host {
+          all: initial;
+        }
+
+        .surface {
+          position: absolute;
+          inset: 0;
+          background: #111312;
+          border-left: 1px solid rgba(244, 245, 239, 0.16);
+          overflow: hidden;
+        }
+
+        iframe {
+          position: absolute;
+          inset: 0;
+          width: 100%;
+          height: 100%;
+          border: 0;
+          display: block;
+          background: #111312;
+        }
+
+        .resize {
+          position: absolute;
+          z-index: 2;
+          left: 0;
+          top: 0;
+          bottom: 0;
+          width: 10px;
+          cursor: ew-resize;
+          touch-action: none;
+          background: linear-gradient(90deg, rgba(244, 245, 239, 0.22), transparent);
+          opacity: 0.18;
+          transition: opacity 140ms ease;
+        }
+
+        .resize:hover,
+        .resize:focus-visible,
+        .resize.is-dragging {
+          opacity: 0.62;
+          outline: 0;
+        }
+      </style>
+      <div class="surface">
+        <div class="resize" role="separator" aria-label="Resize Tab Canvas" tabindex="0"></div>
+        <iframe title="Tab Canvas" src="${chrome.runtime.getURL("sidepanel.html?surface=overlay")}"></iframe>
+      </div>
+    `;
+
+    document.documentElement.appendChild(overlay);
+    wireOverlayResize(overlay, overlayShadow.querySelector(".resize"));
+    setHandleState("open");
+    await sendRuntimeMessage({ type: "setCanvasOverlayState", open: true, width }).catch(() => {});
+  }
+
+  async function closeOverlay() {
+    const overlay = document.getElementById(overlayId);
+    const width = overlay ? Math.round(overlay.getBoundingClientRect().width) : 0;
+    if (overlay) overlay.remove();
+    setHandleState("closed");
+    await sendRuntimeMessage({ type: "setCanvasOverlayState", open: false, width }).catch(() => {});
+  }
+
+  function wireOverlayResize(overlay, resizeHandle) {
+    resizeHandle.addEventListener("pointerdown", (event) => {
+      if (event.button !== 0) return;
+      event.preventDefault();
+      event.stopPropagation();
+
+      const pointerId = event.pointerId;
+      const startX = event.clientX;
+      const startWidth = overlay.getBoundingClientRect().width;
+      resizeHandle.classList.add("is-dragging");
+      resizeHandle.setPointerCapture(pointerId);
+      document.documentElement.style.cursor = "ew-resize";
+
+      function move(moveEvent) {
+        if (moveEvent.pointerId !== pointerId) return;
+        const nextWidth = startWidth + startX - moveEvent.clientX;
+        applyOverlayWidth(overlay, nextWidth);
+      }
+
+      function up(upEvent) {
+        if (upEvent.pointerId !== pointerId) return;
+        resizeHandle.releasePointerCapture(pointerId);
+        resizeHandle.classList.remove("is-dragging");
+        resizeHandle.removeEventListener("pointermove", move);
+        resizeHandle.removeEventListener("pointerup", up);
+        resizeHandle.removeEventListener("pointercancel", up);
+        document.documentElement.style.cursor = "";
+        queueSaveOverlayWidth(overlay, 0);
+      }
+
+      resizeHandle.addEventListener("pointermove", move);
+      resizeHandle.addEventListener("pointerup", up);
+      resizeHandle.addEventListener("pointercancel", up);
+    });
+  }
+
+  function applyOverlayWidth(overlay, width) {
+    const nextWidth = resolveOverlayWidth(width);
+    overlay.style.width = `${nextWidth}px`;
+    queueSaveOverlayWidth(overlay, 160);
+  }
+
+  function queueSaveOverlayWidth(overlay, delay) {
+    window.clearTimeout(overlaySaveTimer);
+    overlaySaveTimer = window.setTimeout(() => {
+      const width = Math.round(overlay.getBoundingClientRect().width);
+      sendRuntimeMessage({ type: "saveCanvasOverlayWidth", width }).catch(() => {});
+    }, delay);
+  }
+
+  function resolveOverlayWidth(width) {
+    const availableWidth = Math.max(overlayWidth.min, window.innerWidth - 96);
+    const maxWidth = Math.min(overlayWidth.max, availableWidth);
+    const fallback = Math.min(maxWidth, Math.max(overlayWidth.min, Math.round(window.innerWidth * 0.42), overlayWidth.fallback));
+    const nextWidth = Math.round(Number(width || fallback));
+    if (!Number.isFinite(nextWidth)) return fallback;
+    return Math.min(maxWidth, Math.max(overlayWidth.min, nextWidth));
+  }
 
   function hasLiveExtensionContext() {
     try {

@@ -13,6 +13,8 @@ Tab Canvas can be a real Chrome extension as a persistent side panel:
 
 The current implementation uses the extension route for MVP validation.
 
+For normal web pages, the MVP uses a content-script overlay instead of relying only on native Side Panel. This lets Tab Canvas restore the last user-resized width after closing and reopening. Native Side Panel remains useful as a fallback, but its width is browser-managed.
+
 ## Other browser extension routes
 
 - Microsoft Edge supports sidebar extensions through the same `chrome.sidePanel` style API. This helps with a persistent side panel, but does not unlock replacing Edge's native tab strip.
