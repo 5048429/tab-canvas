@@ -28,6 +28,8 @@ const els = {
 
 let viewportSaveTimer = 0;
 let panelPort = null;
+let suppressActiveLocateUntil = 0;
+let heldViewport = null;
 
 init();
 
@@ -71,8 +73,9 @@ async function refreshState(message) {
   state.shots = result.shots || {};
   state.boardZoom = clamp(Number(result.viewport?.zoom || 1), BOARD_ZOOM.min, BOARD_ZOOM.max);
   render();
+  restoreHeldViewport();
   const nextActiveId = activeTabId();
-  if (nextActiveId && nextActiveId !== previousActiveId) {
+  if (nextActiveId && nextActiveId !== previousActiveId && !isActiveLocateSuppressed()) {
     scheduleActiveTabLocate();
   }
   if (message) setStatus(message);
@@ -206,14 +209,18 @@ async function closeTab(tabId) {
   const tab = state.tabs.find((item) => item.id === tabId);
   if (!tab) return;
 
+  holdViewportDuringClose();
   setStatus(`Closing ${tab.title}...`);
   try {
+    await freezeCurrentPositions();
     await sendMessage({ type: "closeTab", tabId });
     state.tabs = state.tabs.filter((item) => item.id !== tabId);
     delete state.positions[String(tabId)];
     delete state.shots[String(tabId)];
     render();
+    restoreHeldViewport();
     await refreshState(`Closed ${tab.title}.`);
+    restoreHeldViewport();
   } catch (error) {
     setStatus(error.message || "Could not close tab.");
   }
@@ -383,12 +390,12 @@ async function saveViewport() {
 }
 
 function scheduleActiveTabLocate() {
-  if (state.query || state.dragging || state.panning) return;
+  if (state.query || state.dragging || state.panning || isActiveLocateSuppressed()) return;
   requestAnimationFrame(() => scrollActiveTabIntoView());
 }
 
 function scrollActiveTabIntoView() {
-  if (state.query || state.dragging || state.panning) return;
+  if (state.query || state.dragging || state.panning || isActiveLocateSuppressed()) return;
 
   const activeId = activeTabId();
   const activeIndex = state.tabs.findIndex((tab) => tab.id === activeId);
@@ -412,6 +419,45 @@ function scrollActiveTabIntoView() {
     top: clamp(targetTop, 0, maxTop),
     behavior: "smooth",
   });
+}
+
+async function freezeCurrentPositions() {
+  let changed = false;
+  state.tabs.forEach((tab, index) => {
+    const key = String(tab.id);
+    if (state.positions[key]) return;
+    state.positions[key] = defaultPosition(index);
+    changed = true;
+  });
+
+  if (changed) await saveLayout();
+}
+
+function holdViewportDuringClose() {
+  const until = Date.now() + 1200;
+  suppressActiveLocateUntil = Math.max(suppressActiveLocateUntil, until);
+  heldViewport = {
+    left: els.canvasWrap.scrollLeft,
+    top: els.canvasWrap.scrollTop,
+    until,
+  };
+}
+
+function restoreHeldViewport() {
+  if (!heldViewport) return;
+  if (Date.now() > heldViewport.until) {
+    heldViewport = null;
+    return;
+  }
+
+  const maxLeft = Math.max(0, els.canvasWrap.scrollWidth - els.canvasWrap.clientWidth);
+  const maxTop = Math.max(0, els.canvasWrap.scrollHeight - els.canvasWrap.clientHeight);
+  els.canvasWrap.scrollLeft = clamp(heldViewport.left, 0, maxLeft);
+  els.canvasWrap.scrollTop = clamp(heldViewport.top, 0, maxTop);
+}
+
+function isActiveLocateSuppressed() {
+  return Date.now() < suppressActiveLocateUntil;
 }
 
 async function arrangeCards() {
