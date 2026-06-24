@@ -6,6 +6,7 @@ const STORAGE_KEYS = {
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const openPanelWindows = new Set();
+const autoCaptureTimers = new Map();
 
 async function setPanelBehavior() {
   if (!chrome.sidePanel?.setPanelBehavior) return;
@@ -37,11 +38,28 @@ if (chrome.sidePanel?.onClosed) {
   });
 }
 
+chrome.runtime.onConnect.addListener((port) => {
+  if (port.name !== "tab-canvas-panel") return;
+  let panelWindowId = null;
+  resolveWindowId()
+    .then((windowId) => {
+      panelWindowId = windowId;
+      if (panelWindowId) openPanelWindows.add(panelWindowId);
+    })
+    .catch(() => {});
+  port.onDisconnect.addListener(() => {
+    if (panelWindowId) openPanelWindows.delete(panelWindowId);
+  });
+});
+
 chrome.tabs.onActivated.addListener((activeInfo) => {
   notifyPanelTabsChanged();
   chrome.tabs
     .get(activeInfo.tabId)
-    .then((tab) => injectHandleIntoTab(tab))
+    .then((tab) => {
+      injectHandleIntoTab(tab);
+      scheduleAutoCapture(tab, "activated");
+    })
     .catch(() => {});
 });
 chrome.tabs.onCreated.addListener(() => notifyPanelTabsChanged());
@@ -57,7 +75,10 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
   if (changeInfo.status === "complete" || changeInfo.url) {
     chrome.tabs
       .get(tabId)
-      .then((tab) => injectHandleIntoTab(tab))
+      .then((tab) => {
+        injectHandleIntoTab(tab);
+        if (tab.active) scheduleAutoCapture(tab, "updated");
+      })
       .catch(() => {});
   }
 });
@@ -65,6 +86,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message?.type === "toggleCanvasFromHandle") {
     toggleCanvasFromHandle(sender);
+    sendResponse({ ok: true });
     return false;
   }
 
@@ -129,7 +151,7 @@ async function toggleCanvasPanel(sender) {
 function toggleCanvasFromHandle(sender) {
   const tabId = sender?.tab?.id;
   const windowId = sender?.tab?.windowId;
-  if (!windowId) return;
+  if (!tabId || !windowId) return;
 
   if (openPanelWindows.has(windowId) && chrome.sidePanel?.close) {
     const closePromise = chrome.sidePanel.close({ windowId });
@@ -140,7 +162,7 @@ function toggleCanvasFromHandle(sender) {
 
   if (!chrome.sidePanel?.open) return;
   chrome.sidePanel
-    .open({ windowId })
+    .open({ tabId })
     .then(() => openPanelWindows.add(windowId))
     .catch((error) => notifyHandleToggleFailed(tabId, error));
 }
@@ -217,6 +239,40 @@ function isInjectablePage(url = "") {
   return url.startsWith("http://") || url.startsWith("https://");
 }
 
+function scheduleAutoCapture(tab, reason) {
+  if (!tab?.id || !tab.active || !tab.windowId) return;
+  clearAutoCaptureTimer(tab.id);
+  const delay = reason === "updated" ? 900 : 700;
+  const timer = setTimeout(() => {
+    autoCaptureTimers.delete(tab.id);
+    autoCaptureActiveTab(tab.id, tab.windowId).catch(() => {});
+  }, delay);
+  autoCaptureTimers.set(tab.id, timer);
+}
+
+function clearAutoCaptureTimer(tabId) {
+  const timer = autoCaptureTimers.get(tabId);
+  if (!timer) return;
+  clearTimeout(timer);
+  autoCaptureTimers.delete(tabId);
+}
+
+async function autoCaptureActiveTab(tabId, windowId) {
+  const tab = await chrome.tabs.get(tabId);
+  if (!tab.active || tab.windowId !== windowId) return;
+  if (!(await shouldAutoCapture(tab))) return;
+  await captureVisibleTabSnapshot(publicTab(tab), windowId);
+  notifyPanelTabsChanged();
+}
+
+async function shouldAutoCapture(tab) {
+  const url = tab?.url || "";
+  if (captureBlockedReason(url)) return false;
+  const storage = await chrome.storage.local.get([STORAGE_KEYS.shots]);
+  const shot = storage[STORAGE_KEYS.shots]?.[String(tab.id)];
+  return !shot?.dataUrl || shot.url !== url;
+}
+
 async function activateTab(tabId, windowId) {
   if (!tabId || !windowId) throw new Error("Missing tab target");
   await chrome.windows.update(windowId, { focused: true });
@@ -277,6 +333,7 @@ async function captureVisibleTabSnapshot(tab, windowId) {
   shots[String(tab.id)] = {
     capturedAt: Date.now(),
     dataUrl,
+    url,
   };
 
   const trimmed = trimShots(shots, 36);

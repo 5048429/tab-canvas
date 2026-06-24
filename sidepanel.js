@@ -27,10 +27,12 @@ const els = {
 };
 
 let viewportSaveTimer = 0;
+let panelPort = null;
 
 init();
 
 async function init() {
+  panelPort = chrome.runtime.connect({ name: "tab-canvas-panel" });
   bindEvents();
   await chrome.runtime.sendMessage({ type: "warmup" }).catch(() => {});
   await refreshState("Ready.");

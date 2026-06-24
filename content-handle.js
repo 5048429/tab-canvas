@@ -73,6 +73,7 @@
 
   const button = shadow.querySelector("button");
   let resetTimer = 0;
+  let lastToggleAt = 0;
 
   function resetButtonLabel(delay) {
     window.clearTimeout(resetTimer);
@@ -90,7 +91,10 @@
     resetButtonLabel(1800);
   });
 
-  button.addEventListener("click", () => {
+  function triggerToggle() {
+    const now = Date.now();
+    if (now - lastToggleAt < 350) return;
+    lastToggleAt = now;
     button.classList.add("is-busy");
     button.textContent = "Opening";
 
@@ -101,6 +105,19 @@
     });
 
     resetButtonLabel(700);
+  }
+
+  button.addEventListener("pointerdown", (event) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    triggerToggle();
+  });
+
+  button.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    triggerToggle();
   });
 
   document.documentElement.appendChild(host);

@@ -16,7 +16,8 @@ The first version is a spatial navigation layer, not a live webpage embedder:
 - Layout and screenshots are stored locally.
 - Screenshot access is declared as a core host permission because the product depends on reliable snapshots.
 - The side panel UI is intentionally minimal: the whiteboard is primary, with search and board zoom as lightweight overlays.
-- The canvas can be toggled from a keyboard command or a slim content-script handle on normal web pages.
+- The canvas can be toggled from a slim right-edge content-script handle on normal web pages.
+- Active tabs are automatically snapshotted after activation or page load when no current screenshot exists for that URL.
 
 ## Left side panel constraint
 
