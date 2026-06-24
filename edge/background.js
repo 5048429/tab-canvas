@@ -177,6 +177,11 @@ async function toggleCanvasPanel(sender) {
 }
 
 async function toggleCanvasSurfaceFromAction(tab) {
+  if (tab?.windowId && openPanelWindows.has(tab.windowId)) {
+    await closeCanvasPanel(tab.windowId);
+    return;
+  }
+
   if (tab?.id && isInjectablePage(tab.url)) {
     try {
       await injectHandleIntoTab(tab);
@@ -195,6 +200,7 @@ async function getCanvasOverlayState(sender) {
   if (!windowId) return { isOpen: false, width: 0 };
   return {
     isOpen: overlayOpenWindows.has(windowId),
+    panelOpen: openPanelWindows.has(windowId),
     width: await resolvePanelWidthForOpen(windowId),
   };
 }
@@ -204,6 +210,9 @@ async function setCanvasOverlayState(message, sender) {
   if (!windowId) return { isOpen: false, width: 0 };
 
   if (message.open) {
+    if (openPanelWindows.has(windowId)) {
+      await closeCanvasPanel(windowId).catch(() => {});
+    }
     overlayOpenWindows.set(windowId, true);
   } else {
     overlayOpenWindows.delete(windowId);

@@ -208,17 +208,28 @@
 
   async function restoreOverlayIfNeeded() {
     const state = await sendRuntimeMessage({ type: "getCanvasOverlayState" }).catch(() => null);
+    if (state?.panelOpen) {
+      setHandleState("open");
+      return;
+    }
     if (state?.isOpen) {
       await openOverlay(state.width).catch(() => {});
     }
   }
 
   async function toggleOverlay() {
+    const state = await sendRuntimeMessage({ type: "getCanvasOverlayState" }).catch(() => null);
+    if (state?.panelOpen) {
+      await sendRuntimeMessage({ type: "toggleCanvasFromHandle" });
+      setHandleState("closed");
+      return;
+    }
+
     if (document.getElementById(overlayId)) {
       await closeOverlay();
       return;
     }
-    await openOverlay();
+    await openOverlay(state?.width);
   }
 
   async function openOverlay(preferredWidth) {
@@ -229,7 +240,11 @@
       return;
     }
 
-    const state = preferredWidth ? null : await sendRuntimeMessage({ type: "getCanvasOverlayState" }).catch(() => null);
+    const state = await sendRuntimeMessage({ type: "getCanvasOverlayState" }).catch(() => null);
+    if (state?.panelOpen) {
+      setHandleState("open");
+      return;
+    }
     const width = resolveOverlayWidth(preferredWidth || state?.width);
     const overlay = document.createElement("div");
     overlay.id = overlayId;
