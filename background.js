@@ -6,6 +6,7 @@ const STORAGE_KEYS = {
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const openPanelWindows = new Set();
+const panelPortsByWindow = new Map();
 const autoCaptureTimers = new Map();
 
 async function setPanelBehavior() {
@@ -44,11 +45,19 @@ chrome.runtime.onConnect.addListener((port) => {
   resolveWindowId()
     .then((windowId) => {
       panelWindowId = windowId;
-      if (panelWindowId) openPanelWindows.add(panelWindowId);
+      if (panelWindowId) {
+        openPanelWindows.add(panelWindowId);
+        panelPortsByWindow.set(panelWindowId, port);
+      }
     })
     .catch(() => {});
   port.onDisconnect.addListener(() => {
-    if (panelWindowId) openPanelWindows.delete(panelWindowId);
+    if (panelWindowId) {
+      openPanelWindows.delete(panelWindowId);
+      if (panelPortsByWindow.get(panelWindowId) === port) {
+        panelPortsByWindow.delete(panelWindowId);
+      }
+    }
   });
 });
 
@@ -85,18 +94,19 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message?.type === "toggleCanvasFromHandle") {
-    toggleCanvasFromHandle(sender);
-    sendResponse({ ok: true });
-    return false;
+    toggleCanvasFromHandle(sender)
+      .then((result) => sendResponse({ ok: true, ...result }))
+      .catch((error) => sendResponse({ ok: false, error: error.message || String(error) }));
+    return true;
   }
 
-  handleMessage(message)
+  handleMessage(message, sender)
     .then((result) => sendResponse({ ok: true, ...result }))
     .catch((error) => sendResponse({ ok: false, error: error.message || String(error) }));
   return true;
 });
 
-async function handleMessage(message) {
+async function handleMessage(message, sender) {
   switch (message?.type) {
     case "getState":
       return getState();
@@ -117,7 +127,7 @@ async function handleMessage(message) {
     case "saveLayout":
       return saveLayout(message.positions);
     case "saveViewport":
-      return saveViewport(message.viewport);
+      return saveViewport(message.viewport, sender);
     case "clearShot":
       return clearShot(message.tabId);
     case "warmup":
@@ -131,11 +141,8 @@ async function toggleCanvasPanel(sender) {
   const windowId = sender?.tab?.windowId || (await resolveWindowId(sender));
   if (!windowId) throw new Error("No active browser window found");
 
-  if (openPanelWindows.has(windowId) && chrome.sidePanel?.close) {
-    const closePromise = chrome.sidePanel.close({ windowId });
-    openPanelWindows.delete(windowId);
-    await closePromise;
-    return { panelState: "closed" };
+  if (openPanelWindows.has(windowId)) {
+    return closeCanvasPanel(windowId);
   }
 
   if (!chrome.sidePanel?.open) {
@@ -148,28 +155,32 @@ async function toggleCanvasPanel(sender) {
   return { panelState: "open" };
 }
 
-function toggleCanvasFromHandle(sender) {
+async function toggleCanvasFromHandle(sender) {
   const tabId = sender?.tab?.id;
   const windowId = sender?.tab?.windowId;
-  if (!tabId || !windowId) return;
+  if (!tabId || !windowId) throw new Error("No active browser window found");
 
-  if (openPanelWindows.has(windowId) && chrome.sidePanel?.close) {
-    const closePromise = chrome.sidePanel.close({ windowId });
-    openPanelWindows.delete(windowId);
-    closePromise
-      .then(() => notifyHandleToggleState(tabId, "closed"))
-      .catch((error) => notifyHandleToggleFailed(tabId, error));
-    return;
+  if (openPanelWindows.has(windowId)) {
+    try {
+      const result = await closeCanvasPanel(windowId);
+      notifyHandleToggleState(tabId, "closed");
+      return result;
+    } catch (error) {
+      notifyHandleToggleFailed(tabId, error);
+      throw error;
+    }
   }
 
-  if (!chrome.sidePanel?.open) return;
-  chrome.sidePanel
-    .open({ tabId })
-    .then(() => {
-      openPanelWindows.add(windowId);
-      notifyHandleToggleState(tabId, "open");
-    })
-    .catch((error) => notifyHandleToggleFailed(tabId, error));
+  if (!chrome.sidePanel?.open) throw new Error("Side Panel API is unavailable in this browser");
+  try {
+    await chrome.sidePanel.open({ tabId });
+    openPanelWindows.add(windowId);
+    notifyHandleToggleState(tabId, "open");
+    return { panelState: "open" };
+  } catch (error) {
+    notifyHandleToggleFailed(tabId, error);
+    throw error;
+  }
 }
 
 function notifyHandleToggleState(tabId, state) {
@@ -194,12 +205,54 @@ function notifyHandleToggleFailed(tabId, error) {
 
 async function closeCanvasPanel(windowId) {
   if (!windowId) throw new Error("No active browser window found");
+  const hadPanelPort = panelPortsByWindow.has(windowId);
+  if (await requestPanelSelfClose(windowId)) {
+    return { panelState: "closed" };
+  }
   if (!chrome.sidePanel?.close) {
+    if (hadPanelPort) openPanelWindows.add(windowId);
     throw new Error("This Chrome version cannot close side panels programmatically");
   }
-  await chrome.sidePanel.close({ windowId });
+  try {
+    await chrome.sidePanel.close({ windowId });
+  } catch (error) {
+    if (hadPanelPort) openPanelWindows.add(windowId);
+    throw error;
+  }
   openPanelWindows.delete(windowId);
   return { panelState: "closed" };
+}
+
+async function requestPanelSelfClose(windowId) {
+  const port = panelPortsByWindow.get(windowId);
+  if (!port) return false;
+
+  return new Promise((resolve) => {
+    let settled = false;
+    let timeoutId = 0;
+
+    function settle(didClose) {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeoutId);
+      port.onDisconnect.removeListener(onDisconnect);
+      resolve(didClose);
+    }
+
+    function onDisconnect() {
+      settle(true);
+    }
+
+    try {
+      port.onDisconnect.addListener(onDisconnect);
+      port.postMessage({ type: "closeCanvasPanel" });
+      openPanelWindows.delete(windowId);
+      timeoutId = setTimeout(() => settle(false), 700);
+    } catch {
+      panelPortsByWindow.delete(windowId);
+      settle(false);
+    }
+  });
 }
 
 async function markFocusedPanelOpen() {
@@ -402,11 +455,42 @@ async function saveLayout(positions) {
   return {};
 }
 
-async function saveViewport(viewport) {
+async function saveViewport(viewport, sender) {
   if (!viewport || typeof viewport !== "object") return {};
-  const zoom = clamp(Number(viewport.zoom || 1), 0.55, 1.8);
-  await chrome.storage.local.set({ [STORAGE_KEYS.viewport]: { zoom } });
-  return {};
+  const storage = await chrome.storage.local.get([STORAGE_KEYS.viewport]);
+  const next = { ...(storage[STORAGE_KEYS.viewport] || {}) };
+
+  if (Object.hasOwn(viewport, "zoom")) {
+    next.zoom = clamp(Number(viewport.zoom || 1), 0.55, 1.8);
+  }
+
+  if (Object.hasOwn(viewport, "panelWidth")) {
+    const panelWidth = Math.round(Number(viewport.panelWidth || 0));
+    if (panelWidth > 0) {
+      next.panelWidth = clamp(panelWidth, 240, 1600);
+      const windowWidth = await resolveBrowserWindowWidth(sender);
+      if (windowWidth) {
+        next.windowWidth = windowWidth;
+        next.panelRatio = Math.round(clamp(next.panelWidth / windowWidth, 0.08, 0.9) * 1000) / 1000;
+      }
+      next.panelSavedAt = Date.now();
+    }
+  }
+
+  if (!Object.hasOwn(next, "zoom")) next.zoom = 1;
+  await chrome.storage.local.set({ [STORAGE_KEYS.viewport]: next });
+  return { viewport: next };
+}
+
+async function resolveBrowserWindowWidth(sender) {
+  try {
+    const windowId = await resolveWindowId(sender);
+    if (!windowId) return 0;
+    const browserWindow = await chrome.windows.get(windowId);
+    return Math.round(Number(browserWindow?.width || 0));
+  } catch {
+    return 0;
+  }
 }
 
 async function clearShot(tabId) {

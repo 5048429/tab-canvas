@@ -29,6 +29,7 @@ Chrome extensions cannot hide Chrome's native tab strip or bookmarks bar. This p
 - Use the mouse wheel on a card to resize it.
 - Use the compact zoom strip, or Ctrl/Command + wheel, to zoom the whole canvas.
 - Toggle the canvas with the visible right-edge handle on normal web pages.
+- When closing from the handle, records the current side-panel width and asks the panel to close itself so Chrome can preserve the user's resized split where supported.
 - Automatically snapshots the active tab the first time it is visited or when its URL changes.
 - Clicking a card also refreshes that tab's snapshot after switching to it.
 - Declares capture host access because screenshots are a core product capability.
@@ -38,7 +39,7 @@ Chrome extensions cannot hide Chrome's native tab strip or bookmarks bar. This p
 
 - The extension cannot force Side Panel to the left. Users must set that in Chrome.
 - The extension cannot replace or hide Chrome's native tab strip or bookmarks bar.
-- Programmatic side-panel close requires Chrome 141 or newer; older Chrome versions can still open the canvas from the shortcut or handle.
+- Exact side-panel width restoration is browser-managed. The extension records the latest panel width and uses a self-close path where possible; API fallback close still depends on Chrome support for `chrome.sidePanel.close`.
 - Screenshots require host access and capture page content, not Chrome's browser UI.
 - Chrome can only capture visible tab content, so background tabs are snapshotted after they are activated.
 - Chrome internal pages such as `chrome://extensions`, extension pages, DevTools pages, and some local `file://` pages cannot be captured from the side panel.

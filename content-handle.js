@@ -32,7 +32,7 @@
         width: 100%;
         height: 100%;
         display: grid;
-        grid-template-rows: 16px 1fr 16px;
+        grid-template-rows: 1fr 18px;
         align-items: center;
         justify-items: center;
         gap: 5px;
@@ -58,18 +58,6 @@
           background 260ms cubic-bezier(0.2, 0.8, 0.2, 1),
           color 260ms cubic-bezier(0.2, 0.8, 0.2, 1),
           transform 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
-      }
-
-      .rail {
-        width: 3px;
-        height: 24px;
-        border-radius: 999px;
-        background: #49c87d;
-        box-shadow: 0 0 16px rgba(73, 200, 125, 0.42);
-        opacity: 0.86;
-        transition:
-          height 280ms cubic-bezier(0.2, 0.8, 0.2, 1),
-          opacity 240ms ease;
       }
 
       .label {
@@ -100,12 +88,6 @@
         transform: translateX(-3px);
       }
 
-      button:hover .rail,
-      button:focus-visible .rail {
-        height: 34px;
-        opacity: 1;
-      }
-
       button:active,
       button.is-busy {
         transform: translateX(-5px) scale(0.985);
@@ -116,29 +98,18 @@
         opacity: 0.92;
       }
 
-      button[data-state="open"] .rail {
-        height: 44px;
-      }
-
       button[data-state="blocked"] {
         color: #f5c8c8;
       }
 
-      button[data-state="blocked"] .rail {
-        background: #f06464;
-        box-shadow: 0 0 16px rgba(240, 100, 100, 0.34);
-      }
-
       @media (prefers-reduced-motion: reduce) {
         button,
-        .rail,
         .arrow {
           transition-duration: 0.001ms;
         }
       }
     </style>
     <button type="button" aria-label="Toggle Tab Canvas" title="Toggle Tab Canvas" data-state="closed" aria-expanded="false">
-      <span class="rail" aria-hidden="true"></span>
       <span class="label">Canvas</span>
       <span class="arrow" aria-hidden="true">&lsaquo;</span>
     </button>

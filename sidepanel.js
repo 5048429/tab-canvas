@@ -8,6 +8,8 @@ const state = {
   positions: {},
   shots: {},
   boardZoom: 1,
+  panelWidth: 0,
+  panelRatio: 0,
   query: "",
   dragging: null,
   panning: null,
@@ -35,9 +37,11 @@ init();
 
 async function init() {
   panelPort = chrome.runtime.connect({ name: "tab-canvas-panel" });
+  panelPort.onMessage.addListener(handlePanelPortMessage);
   bindEvents();
   await chrome.runtime.sendMessage({ type: "warmup" }).catch(() => {});
   await refreshState("Ready.");
+  queueSaveViewport();
 }
 
 function bindEvents() {
@@ -63,6 +67,25 @@ function bindEvents() {
   });
 
   window.addEventListener("keydown", handleKeyDown);
+  window.addEventListener("resize", queueSaveViewport);
+  window.addEventListener("pagehide", () => {
+    saveViewport().catch(() => {});
+  });
+}
+
+function handlePanelPortMessage(message) {
+  if (message?.type === "closeCanvasPanel") {
+    closeCanvasPanelFromRequest();
+  }
+}
+
+async function closeCanvasPanelFromRequest() {
+  try {
+    await saveViewport();
+  } catch {
+    // The panel is already closing; preserving width is best effort.
+  }
+  window.close();
 }
 
 async function refreshState(message) {
@@ -72,6 +95,8 @@ async function refreshState(message) {
   state.positions = result.positions || {};
   state.shots = result.shots || {};
   state.boardZoom = clamp(Number(result.viewport?.zoom || 1), BOARD_ZOOM.min, BOARD_ZOOM.max);
+  state.panelWidth = Number(result.viewport?.panelWidth || 0);
+  state.panelRatio = Number(result.viewport?.panelRatio || 0);
   render();
   restoreHeldViewport();
   const nextActiveId = activeTabId();
@@ -386,7 +411,14 @@ function queueSaveViewport() {
 }
 
 async function saveViewport() {
-  await sendMessage({ type: "saveViewport", viewport: { zoom: state.boardZoom } });
+  await sendMessage({ type: "saveViewport", viewport: currentViewportSnapshot() });
+}
+
+function currentViewportSnapshot() {
+  return {
+    zoom: state.boardZoom,
+    panelWidth: Math.round(window.innerWidth || document.documentElement.clientWidth || document.body.clientWidth || 0),
+  };
 }
 
 function scheduleActiveTabLocate() {
