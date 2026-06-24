@@ -73,15 +73,21 @@
 
   const button = shadow.querySelector("button");
   button.addEventListener("click", async () => {
+    const idleLabel = "Canvas";
     button.classList.add("is-busy");
+    button.textContent = "Opening";
     try {
       const response = await chrome.runtime.sendMessage({ type: "toggleCanvasPanel" });
       if (!response?.ok) throw new Error(response?.error || "Toggle failed");
-    } catch {
-      // The handle stays quiet if this page cannot open the side panel from a
-      // content-script gesture.
+      button.textContent = response.panelState === "closed" ? "Closed" : "Open";
+    } catch (error) {
+      button.textContent = "Blocked";
+      button.title = error?.message || "Chrome blocked Tab Canvas. Reload the extension and this page, then try again.";
     } finally {
-      window.setTimeout(() => button.classList.remove("is-busy"), 220);
+      window.setTimeout(() => {
+        button.classList.remove("is-busy");
+        button.textContent = idleLabel;
+      }, 700);
     }
   });
 

@@ -101,12 +101,13 @@ async function handleMessage(message) {
 }
 
 async function toggleCanvasPanel(sender) {
-  const windowId = await resolveWindowId(sender);
+  const windowId = sender?.tab?.windowId || (await resolveWindowId(sender));
   if (!windowId) throw new Error("No active browser window found");
 
   if (openPanelWindows.has(windowId) && chrome.sidePanel?.close) {
-    await chrome.sidePanel.close({ windowId });
+    const closePromise = chrome.sidePanel.close({ windowId });
     openPanelWindows.delete(windowId);
+    await closePromise;
     return { panelState: "closed" };
   }
 
@@ -114,7 +115,8 @@ async function toggleCanvasPanel(sender) {
     throw new Error("Side Panel API is unavailable in this browser");
   }
 
-  await chrome.sidePanel.open({ windowId });
+  const openPromise = chrome.sidePanel.open({ windowId });
+  await openPromise;
   openPanelWindows.add(windowId);
   return { panelState: "open" };
 }
