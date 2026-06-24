@@ -1,0 +1,31 @@
+{
+  "manifest_version": 3,
+  "name": "Tab Canvas for Edge",
+  "version": "0.1.0",
+  "description": "A spatial Microsoft Edge sidebar for navigating browser tabs with cached visual snapshots.",
+  "permissions": ["sidePanel", "tabs", "storage", "activeTab", "scripting"],
+  "host_permissions": ["<all_urls>"],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "Open Tab Canvas for Edge"
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["http://*/*", "https://*/*"],
+      "js": ["content-handle.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["sidepanel.html", "sidepanel.css", "sidepanel.js"],
+      "matches": ["http://*/*", "https://*/*"]
+    }
+  ]
+}
