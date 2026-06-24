@@ -1,7 +1,8 @@
 (function initTabCanvasHandle() {
   const hostId = "tab-canvas-quick-toggle";
-  if (document.getElementById(hostId)) return;
+  document.getElementById(hostId)?.remove();
   if (!document.documentElement || document.documentElement.dataset.tabCanvasHandle === "off") return;
+  if (!hasLiveExtensionContext()) return;
 
   const host = document.createElement("div");
   host.id = hostId;
@@ -139,7 +140,7 @@
     <button type="button" aria-label="Toggle Tab Canvas" title="Toggle Tab Canvas" data-state="closed" aria-expanded="false">
       <span class="rail" aria-hidden="true"></span>
       <span class="label">Canvas</span>
-      <span class="arrow" aria-hidden="true">‹</span>
+      <span class="arrow" aria-hidden="true">&lsaquo;</span>
     </button>
   `;
 
@@ -164,7 +165,7 @@
     label.textContent = state === "pending" ? "Opening" : state === "blocked" ? "Blocked" : "Canvas";
   }
 
-  chrome.runtime.onMessage.addListener((message) => {
+  addRuntimeMessageListener((message) => {
     if (message?.type === "canvasToggleState") {
       setHandleState(message.state === "open" ? "open" : "closed");
       return;
@@ -181,7 +182,7 @@
     lastToggleAt = now;
     setHandleState("pending");
 
-    chrome.runtime.sendMessage({ type: "toggleCanvasFromHandle" }).catch((error) => {
+    sendRuntimeMessage({ type: "toggleCanvasFromHandle" }).catch((error) => {
       setHandleState("blocked");
       button.title = error?.message || "Chrome blocked Tab Canvas. Reload the extension and this page, then try again.";
       resetButtonLabel(1800);
@@ -204,4 +205,33 @@
   });
 
   document.documentElement.appendChild(host);
+
+  function hasLiveExtensionContext() {
+    try {
+      return Boolean(chrome?.runtime?.id);
+    } catch {
+      return false;
+    }
+  }
+
+  function addRuntimeMessageListener(listener) {
+    try {
+      if (!hasLiveExtensionContext()) return false;
+      chrome.runtime.onMessage.addListener(listener);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  function sendRuntimeMessage(message) {
+    try {
+      if (!hasLiveExtensionContext()) {
+        return Promise.reject(new Error("Extension context invalidated."));
+      }
+      return chrome.runtime.sendMessage(message);
+    } catch (error) {
+      return Promise.reject(error);
+    }
+  }
 })();
