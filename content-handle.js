@@ -72,23 +72,35 @@
   `;
 
   const button = shadow.querySelector("button");
-  button.addEventListener("click", async () => {
-    const idleLabel = "Canvas";
+  let resetTimer = 0;
+
+  function resetButtonLabel(delay) {
+    window.clearTimeout(resetTimer);
+    resetTimer = window.setTimeout(() => {
+      button.classList.remove("is-busy");
+      button.textContent = "Canvas";
+    }, delay);
+  }
+
+  chrome.runtime.onMessage.addListener((message) => {
+    if (message?.type !== "canvasToggleFailed") return;
+    button.classList.remove("is-busy");
+    button.textContent = "Blocked";
+    button.title = message.error || "Chrome blocked Tab Canvas.";
+    resetButtonLabel(1800);
+  });
+
+  button.addEventListener("click", () => {
     button.classList.add("is-busy");
     button.textContent = "Opening";
-    try {
-      const response = await chrome.runtime.sendMessage({ type: "toggleCanvasPanel" });
-      if (!response?.ok) throw new Error(response?.error || "Toggle failed");
-      button.textContent = response.panelState === "closed" ? "Closed" : "Open";
-    } catch (error) {
+
+    chrome.runtime.sendMessage({ type: "toggleCanvasFromHandle" }).catch((error) => {
       button.textContent = "Blocked";
       button.title = error?.message || "Chrome blocked Tab Canvas. Reload the extension and this page, then try again.";
-    } finally {
-      window.setTimeout(() => {
-        button.classList.remove("is-busy");
-        button.textContent = idleLabel;
-      }, 700);
-    }
+      resetButtonLabel(1800);
+    });
+
+    resetButtonLabel(700);
   });
 
   document.documentElement.appendChild(host);

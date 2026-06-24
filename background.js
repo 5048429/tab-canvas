@@ -63,6 +63,11 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
 });
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message?.type === "toggleCanvasFromHandle") {
+    toggleCanvasFromHandle(sender);
+    return false;
+  }
+
   handleMessage(message)
     .then((result) => sendResponse({ ok: true, ...result }))
     .catch((error) => sendResponse({ ok: false, error: error.message || String(error) }));
@@ -119,6 +124,35 @@ async function toggleCanvasPanel(sender) {
   await openPromise;
   openPanelWindows.add(windowId);
   return { panelState: "open" };
+}
+
+function toggleCanvasFromHandle(sender) {
+  const tabId = sender?.tab?.id;
+  const windowId = sender?.tab?.windowId;
+  if (!windowId) return;
+
+  if (openPanelWindows.has(windowId) && chrome.sidePanel?.close) {
+    const closePromise = chrome.sidePanel.close({ windowId });
+    openPanelWindows.delete(windowId);
+    closePromise.catch((error) => notifyHandleToggleFailed(tabId, error));
+    return;
+  }
+
+  if (!chrome.sidePanel?.open) return;
+  chrome.sidePanel
+    .open({ windowId })
+    .then(() => openPanelWindows.add(windowId))
+    .catch((error) => notifyHandleToggleFailed(tabId, error));
+}
+
+function notifyHandleToggleFailed(tabId, error) {
+  if (!tabId) return;
+  chrome.tabs
+    .sendMessage(tabId, {
+      type: "canvasToggleFailed",
+      error: error?.message || String(error || "Chrome blocked Tab Canvas."),
+    })
+    .catch(() => {});
 }
 
 async function closeCanvasPanel(windowId) {
