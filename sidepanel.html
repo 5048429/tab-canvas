@@ -4,6 +4,23 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Tab Canvas</title>
+    <script>
+      (() => {
+        const storageKey = "tabCanvas.panelWidth";
+        const minWidth = 240;
+        const maxWidth = 1600;
+        const params = new URLSearchParams(window.location.search);
+        const requestedWidth = Number(params.get("panelWidth") || 0);
+        const storedWidth = Number(window.localStorage.getItem(storageKey) || 0);
+        const width = Math.round(requestedWidth || storedWidth);
+        if (!Number.isFinite(width) || width < minWidth) return;
+        const clampedWidth = Math.min(maxWidth, Math.max(minWidth, width));
+        const cssWidth = `${clampedWidth}px`;
+        document.documentElement.style.setProperty("--tab-canvas-panel-width", cssWidth);
+        document.documentElement.style.width = cssWidth;
+        document.documentElement.style.minWidth = cssWidth;
+      })();
+    </script>
     <link rel="stylesheet" href="sidepanel.css" />
   </head>
   <body>

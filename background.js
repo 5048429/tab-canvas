@@ -4,6 +4,8 @@ const STORAGE_KEYS = {
   viewport: "tabCanvas.viewport",
 };
 
+const SIDE_PANEL_PATH = "sidepanel.html";
+const PANEL_WIDTH = { min: 240, max: 1600 };
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const openPanelWindows = new Set();
 const panelPortsByWindow = new Map();
@@ -11,7 +13,7 @@ const autoCaptureTimers = new Map();
 
 async function setPanelBehavior() {
   if (!chrome.sidePanel?.setPanelBehavior) return;
-  await chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
+  await chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: false });
 }
 
 async function initializeExtension() {
@@ -25,6 +27,10 @@ chrome.runtime.onInstalled.addListener(() => {
 
 chrome.runtime.onStartup.addListener(() => {
   initializeExtension().catch(() => {});
+});
+
+chrome.action?.onClicked?.addListener((tab) => {
+  toggleCanvasPanel({ tab }).catch(() => {});
 });
 
 if (chrome.sidePanel?.onOpened) {
@@ -149,6 +155,7 @@ async function toggleCanvasPanel(sender) {
     throw new Error("Side Panel API is unavailable in this browser");
   }
 
+  preparePanelForOpen(windowId).catch(() => {});
   const openPromise = chrome.sidePanel.open({ windowId });
   await openPromise;
   openPanelWindows.add(windowId);
@@ -173,6 +180,7 @@ async function toggleCanvasFromHandle(sender) {
 
   if (!chrome.sidePanel?.open) throw new Error("Side Panel API is unavailable in this browser");
   try {
+    preparePanelForOpen(windowId).catch(() => {});
     await chrome.sidePanel.open({ tabId });
     openPanelWindows.add(windowId);
     notifyHandleToggleState(tabId, "open");
@@ -181,6 +189,38 @@ async function toggleCanvasFromHandle(sender) {
     notifyHandleToggleFailed(tabId, error);
     throw error;
   }
+}
+
+async function preparePanelForOpen(windowId) {
+  if (!chrome.sidePanel?.setOptions) return;
+  const targetWidth = await resolvePanelWidthForOpen(windowId);
+  const path = panelPathForWidth(targetWidth);
+  try {
+    await chrome.sidePanel.setOptions({ path, enabled: true });
+  } catch {
+    if (path === SIDE_PANEL_PATH) return;
+    await chrome.sidePanel.setOptions({ path: SIDE_PANEL_PATH, enabled: true }).catch(() => {});
+  }
+}
+
+async function resolvePanelWidthForOpen(windowId) {
+  const storage = await chrome.storage.local.get([STORAGE_KEYS.viewport]);
+  const viewport = storage[STORAGE_KEYS.viewport] || {};
+  const browserWindow = await chrome.windows.get(windowId).catch(() => null);
+  const windowWidth = Number(browserWindow?.width || 0);
+  const ratioWidth = Number(viewport.panelRatio || 0) * windowWidth;
+  const lastWidth = Number(viewport.panelWidth || 0);
+  return sanitizePanelWidth(ratioWidth || lastWidth);
+}
+
+function panelPathForWidth(width) {
+  return width ? `${SIDE_PANEL_PATH}?panelWidth=${encodeURIComponent(String(width))}` : SIDE_PANEL_PATH;
+}
+
+function sanitizePanelWidth(width) {
+  const panelWidth = Math.round(Number(width || 0));
+  if (!Number.isFinite(panelWidth) || panelWidth < PANEL_WIDTH.min) return 0;
+  return clamp(panelWidth, PANEL_WIDTH.min, PANEL_WIDTH.max);
 }
 
 function notifyHandleToggleState(tabId, state) {
@@ -465,9 +505,9 @@ async function saveViewport(viewport, sender) {
   }
 
   if (Object.hasOwn(viewport, "panelWidth")) {
-    const panelWidth = Math.round(Number(viewport.panelWidth || 0));
+    const panelWidth = sanitizePanelWidth(viewport.panelWidth);
     if (panelWidth > 0) {
-      next.panelWidth = clamp(panelWidth, 240, 1600);
+      next.panelWidth = panelWidth;
       const windowWidth = await resolveBrowserWindowWidth(sender);
       if (windowWidth) {
         next.windowWidth = windowWidth;

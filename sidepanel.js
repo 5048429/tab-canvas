@@ -2,6 +2,8 @@ const DEFAULT_COLORS = ["#49c87d", "#f2b84b", "#8fb7ff", "#f06464", "#dfe2da", "
 const CANVAS_SIZE = { width: 720, height: 1200 };
 const CARD_SIZE = { width: 220, height: 158 };
 const BOARD_ZOOM = { min: 0.55, max: 1.8, step: 0.1 };
+const PANEL_WIDTH = { min: 240, max: 1600 };
+const PANEL_WIDTH_STORAGE_KEY = "tabCanvas.panelWidth";
 
 const state = {
   tabs: [],
@@ -42,6 +44,7 @@ async function init() {
   await chrome.runtime.sendMessage({ type: "warmup" }).catch(() => {});
   await refreshState("Ready.");
   queueSaveViewport();
+  window.setTimeout(releasePanelWidthHint, 1200);
 }
 
 function bindEvents() {
@@ -415,10 +418,28 @@ async function saveViewport() {
 }
 
 function currentViewportSnapshot() {
+  const panelWidth = Math.round(window.innerWidth || document.documentElement.clientWidth || document.body.clientWidth || 0);
+  rememberPanelWidth(panelWidth);
   return {
     zoom: state.boardZoom,
-    panelWidth: Math.round(window.innerWidth || document.documentElement.clientWidth || document.body.clientWidth || 0),
+    panelWidth,
   };
+}
+
+function rememberPanelWidth(width) {
+  if (!Number.isFinite(width) || width < PANEL_WIDTH.min) return;
+  const panelWidth = clamp(Math.round(width), PANEL_WIDTH.min, PANEL_WIDTH.max);
+  try {
+    window.localStorage.setItem(PANEL_WIDTH_STORAGE_KEY, String(panelWidth));
+  } catch {
+    // Width restoration still has the async extension storage fallback.
+  }
+}
+
+function releasePanelWidthHint() {
+  document.documentElement.style.removeProperty("--tab-canvas-panel-width");
+  document.documentElement.style.removeProperty("width");
+  document.documentElement.style.removeProperty("min-width");
 }
 
 function scheduleActiveTabLocate() {
