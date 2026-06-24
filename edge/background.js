@@ -6,11 +6,16 @@ const STORAGE_KEYS = {
 
 const SIDE_PANEL_PATH = "sidepanel.html";
 const PANEL_WIDTH = { min: 240, max: 1600 };
+const OVERLAY_PRELOAD_TIMEOUT_MS = 650;
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const openPanelWindows = new Set();
 const panelPortsByWindow = new Map();
 const overlayOpenWindows = new Map();
 const autoCaptureTimers = new Map();
+
+function withTimeout(promise, ms) {
+  return Promise.race([promise, sleep(ms).then(() => undefined)]);
+}
 
 async function setPanelBehavior() {
   if (!chrome.sidePanel?.setPanelBehavior) return;
@@ -217,13 +222,35 @@ async function saveCanvasOverlayWidth(message, sender) {
 
 async function syncCanvasOverlayIntoTab(tab) {
   if (!tab?.id || !tab.active || !overlayOpenWindows.has(tab.windowId) || !isInjectablePage(tab.url)) return;
+  await ensureCanvasOverlayInTab(tab, { timeoutMs: 300 }).catch(() => {});
+}
+
+async function preloadCanvasOverlayForTab(tabId, windowId) {
+  if (!overlayOpenWindows.has(windowId)) return;
+  const tab = await chrome.tabs.get(tabId).catch(() => null);
+  if (!tab || !isInjectablePage(tab.url)) return;
+  await ensureCanvasOverlayInTab(tab, { timeoutMs: OVERLAY_PRELOAD_TIMEOUT_MS }).catch(() => {});
+}
+
+async function ensureCanvasOverlayInTab(tab, options = {}) {
   const { width } = await getCanvasOverlayState({ tab });
-  await chrome.tabs
+  await injectHandleIntoTab(tab);
+  const showOverlay = chrome.tabs
     .sendMessage(tab.id, {
       type: "showCanvasOverlay",
       width,
     })
-    .catch(() => {});
+    .then((response) => {
+      if (response?.ok === false) throw new Error(response.error || "Could not preload canvas overlay");
+      return response;
+    });
+
+  if (!options.timeoutMs) {
+    await showOverlay;
+    return;
+  }
+
+  await withTimeout(showOverlay, options.timeoutMs);
 }
 
 async function toggleCanvasFromHandle(sender) {
@@ -447,6 +474,7 @@ async function shouldAutoCapture(tab) {
 
 async function activateTab(tabId, windowId) {
   if (!tabId || !windowId) throw new Error("Missing tab target");
+  await preloadCanvasOverlayForTab(tabId, windowId);
   await chrome.windows.update(windowId, { focused: true });
   const tab = await chrome.tabs.update(tabId, { active: true });
   return { tab: publicTab(tab) };

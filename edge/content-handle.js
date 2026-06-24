@@ -139,18 +139,18 @@
     label.textContent = state === "pending" ? "Opening" : state === "blocked" ? "Blocked" : "Canvas";
   }
 
-  addRuntimeMessageListener((message) => {
+  addRuntimeMessageListener((message, sender, sendResponse) => {
     if (message?.type === "toggleCanvasOverlay") {
-      toggleOverlay().catch((error) => showToggleError(error));
-      return;
+      respondToOverlayRequest(toggleOverlay(), sendResponse);
+      return true;
     }
     if (message?.type === "showCanvasOverlay") {
-      openOverlay(message.width).catch((error) => showToggleError(error));
-      return;
+      respondToOverlayRequest(openOverlay(message.width), sendResponse);
+      return true;
     }
     if (message?.type === "hideCanvasOverlay") {
-      closeOverlay();
-      return;
+      respondToOverlayRequest(closeOverlay(), sendResponse);
+      return true;
     }
     if (message?.type === "canvasToggleState") {
       setHandleState(message.state === "open" ? "open" : "closed");
@@ -161,6 +161,15 @@
     button.title = message.error || "Edge blocked Tab Canvas.";
     resetButtonLabel(1800);
   });
+
+  function respondToOverlayRequest(request, sendResponse) {
+    request
+      .then(() => sendResponse?.({ ok: true }))
+      .catch((error) => {
+        showToggleError(error);
+        sendResponse?.({ ok: false, error: error?.message || String(error) });
+      });
+  }
 
   function triggerToggle() {
     const now = Date.now();
@@ -201,10 +210,6 @@
     const state = await sendRuntimeMessage({ type: "getCanvasOverlayState" }).catch(() => null);
     if (state?.isOpen) {
       await openOverlay(state.width).catch(() => {});
-      return;
-    }
-    if (document.getElementById(overlayId)) {
-      await closeOverlay();
     }
   }
 

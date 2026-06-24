@@ -384,24 +384,6 @@ button {
   width: 62%;
 }
 
-.status-pill {
-  position: absolute;
-  z-index: 10;
-  left: 10px;
-  bottom: 10px;
-  max-width: min(420px, calc(100% - 206px));
-  min-height: 34px;
-  padding: 9px 11px;
-  border: 1px solid rgba(255, 255, 255, 0.09);
-  border-radius: 10px;
-  color: rgba(244, 245, 239, 0.66);
-  background: rgba(17, 19, 18, 0.6);
-  box-shadow: 0 14px 34px rgba(5, 9, 7, 0.2);
-  backdrop-filter: blur(18px);
-  font-size: 12px;
-  line-height: 1.35;
-}
-
 @media (max-width: 360px) {
   .top-strip {
     right: 8px;
@@ -419,10 +401,6 @@ button {
   .zoom-strip {
     grid-template-columns: 28px 82px 38px 28px;
     right: 8px;
-  }
-
-  .status-pill {
-    display: none;
   }
 }
 

@@ -24,7 +24,6 @@ const els = {
   canvas: document.querySelector("#canvas"),
   search: document.querySelector("#searchInput"),
   tabCount: document.querySelector("#tabCount"),
-  status: document.querySelector("#statusText"),
   zoomOut: document.querySelector("#zoomOutButton"),
   zoomIn: document.querySelector("#zoomInButton"),
   zoomSlider: document.querySelector("#zoomSlider"),
@@ -42,8 +41,10 @@ async function init() {
   panelPort = chrome.runtime.connect({ name: SURFACE === "overlay" ? "tab-canvas-overlay" : "tab-canvas-panel" });
   panelPort.onMessage.addListener(handlePanelPortMessage);
   bindEvents();
-  await chrome.runtime.sendMessage({ type: "warmup" }).catch(() => {});
-  await refreshState("Ready.");
+  if (SURFACE === "sidepanel") {
+    await chrome.runtime.sendMessage({ type: "warmup" }).catch(() => {});
+  }
+  await refreshState();
   queueSaveViewport();
   window.setTimeout(releasePanelWidthHint, 1200);
 }
@@ -587,9 +588,7 @@ function roundZoom(value) {
   return Math.round(value * 100) / 100;
 }
 
-function setStatus(message) {
-  els.status.textContent = message;
-}
+function setStatus() {}
 
 async function sendMessage(message) {
   const response = await chrome.runtime.sendMessage(message);
