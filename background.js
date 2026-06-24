@@ -156,15 +156,30 @@ function toggleCanvasFromHandle(sender) {
   if (openPanelWindows.has(windowId) && chrome.sidePanel?.close) {
     const closePromise = chrome.sidePanel.close({ windowId });
     openPanelWindows.delete(windowId);
-    closePromise.catch((error) => notifyHandleToggleFailed(tabId, error));
+    closePromise
+      .then(() => notifyHandleToggleState(tabId, "closed"))
+      .catch((error) => notifyHandleToggleFailed(tabId, error));
     return;
   }
 
   if (!chrome.sidePanel?.open) return;
   chrome.sidePanel
     .open({ tabId })
-    .then(() => openPanelWindows.add(windowId))
+    .then(() => {
+      openPanelWindows.add(windowId);
+      notifyHandleToggleState(tabId, "open");
+    })
     .catch((error) => notifyHandleToggleFailed(tabId, error));
+}
+
+function notifyHandleToggleState(tabId, state) {
+  if (!tabId) return;
+  chrome.tabs
+    .sendMessage(tabId, {
+      type: "canvasToggleState",
+      state,
+    })
+    .catch(() => {});
 }
 
 function notifyHandleToggleFailed(tabId, error) {
